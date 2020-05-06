@@ -79,6 +79,8 @@ std::vector<uint32_t> bytesReceived(num_sta*num_ap+num_ap);
 std::vector<double> g_signalDbmAvg(num_sta*num_ap+num_ap);
 std::vector<double> g_noiseDbmAvg(num_sta*num_ap+num_ap);
 std::vector<uint32_t> g_samples(num_sta*num_ap+num_ap);
+std::vector <uint64_t>  totalPacketsThrough  (num_ap);
+std::vector <double> throughput (num_ap);
 
 uint32_t ContextToNodeId(std::string context)
 {
@@ -121,8 +123,9 @@ int main(int argc, char *argv[])
   uint32_t payloadSize = 1500; // bytes
   uint32_t mcs = 0;            // MCS value
   double interval = 0.001;     // seconds
-  bool enableObssPd = true;
   double obssPdThreshold = -72.0; // dBm
+  bool enableObssPd = true;
+  bool udp = true;            //udp/tcp
 
   CommandLine cmd;
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
@@ -136,6 +139,7 @@ int main(int argc, char *argv[])
   cmd.AddValue("ccaEdTrSta", "CCA-ED Threshold of STA (dBm)", ccaEdTrSta);
   cmd.AddValue("ccaEdTrAp", "CCA-ED Threshold of AP (dBm)", ccaEdTrAp);
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
+  cmd.AddValue("udp", "UDP if set to 1, TCP otherwise", udp);
   cmd.Parse(argc, argv);
 
   //criar containers de access points e STA
@@ -241,7 +245,7 @@ int main(int argc, char *argv[])
   mobility.Install(wifiApNodes);
   mobility.Install(wifiStaNodes);
 
-  PacketSocketHelper packetSocket;
+/*   PacketSocketHelper packetSocket;
   packetSocket.Install(wifiApNodes);
   packetSocket.Install(wifiStaNodes);
   ApplicationContainer apps;
@@ -267,16 +271,72 @@ int main(int argc, char *argv[])
     Ptr<PacketSocketServer> server = CreateObject<PacketSocketServer>();
     server->SetLocal(socketAddr);
     wifiApNodes.Get(i)->AddApplication(server);
-  }
+  } */
   
 
-  Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback(&SocketRx));
+  /* Internet stack*/
+  InternetStackHelper stack;
+  stack.Install (wifiApNodes);
+  stack.Install (wifiStaNodes);
+
+  Ipv4AddressHelper address;
+  address.SetBase ("192.168.1.0", "255.255.255.0");
+  Ipv4InterfaceContainer staNodeInterface;
+  Ipv4InterfaceContainer apNodeInterface;
+
+  /* Setting applications */
+  std::vector <ApplicationContainer> serverApp(num_ap);
+  for (uint32_t i = 0; i < num_ap; i++){
+    apNodeInterface.Add(address.Assign (apDevice[i]));
+     staNodeInterface = address.Assign (staDevice[i]);
+    if (udp)
+      {
+        //UDP flow
+        uint16_t port = 9;
+        UdpServerHelper server (port);
+        serverApp[i] = server.Install (wifiApNodes.Get (i));
+        serverApp[i].Start (Seconds (0.0));
+        serverApp[i].Stop (Seconds (duration + 1));
+
+        UdpClientHelper client (apNodeInterface.GetAddress (i), port);
+        client.SetAttribute ("MaxPackets", UintegerValue (0));
+        client.SetAttribute ("Interval", TimeValue(Seconds(interval))); //packets/s
+        client.SetAttribute ("PacketSize", UintegerValue (payloadSize));
+        ApplicationContainer clientApp = client.Install (wifiStaNodes);
+        clientApp.Start (Seconds (1.0));
+        clientApp.Stop (Seconds (duration + 1));
+      }
+    else
+      {
+        //TCP flow
+        uint16_t port = 50000;
+        Address localAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
+        PacketSinkHelper packetSinkHelper ("ns3::TcpSocketFactory", localAddress);
+        serverApp[i] = packetSinkHelper.Install (wifiApNodes.Get (i));
+        serverApp[i].Start (Seconds (0.0));
+        serverApp[i].Stop (Seconds (duration + 1));
+
+        OnOffHelper onoff ("ns3::TcpSocketFactory", Ipv4Address::GetAny ());
+        onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+        onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
+        onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
+        onoff.SetAttribute ("DataRate", DataRateValue (1000000000)); //bit/s
+        AddressValue remoteAddress (InetSocketAddress (apNodeInterface.GetAddress (i), port));
+        onoff.SetAttribute ("Remote", remoteAddress);
+        ApplicationContainer clientApp = onoff.Install (wifiStaNodes);
+        clientApp.Start (Seconds (1.0));
+        clientApp.Stop (Seconds (duration+ 1));
+      }
+  }
+
+  //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback(&SocketRx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback (&MonitorSniffRx));
 
   Simulator::Stop(Seconds(duration));
   Simulator::Run();
 
   Simulator::Destroy();
+
 
   std::cout << std::setw (5) << "index" <<
     std::setw (12) << "Tput (Mb/s)" <<
@@ -286,10 +346,24 @@ int main(int argc, char *argv[])
     std::endl;
   for (uint32_t i = 0; i < num_ap; i++)
   {
-    double throughput = static_cast<double>(bytesReceived[num_sta*num_ap + i]) * 8 / 1000 / 1000 / duration;
+    //double throughput = static_cast<double>(bytesReceived[num_sta*num_ap + i]) * 8 / 1000 / 1000 / duration;
+
+    if (udp)
+    {
+      //UDP
+      totalPacketsThrough[i] = DynamicCast<UdpServer> (serverApp[i].Get (0))->GetReceived ();
+      throughput[i] = totalPacketsThrough[i] * payloadSize * 8 / (duration * 1000000.0); //Mbit/s
+    }
+    else
+    {
+      //TCP
+      uint64_t totalBytesRx = DynamicCast<PacketSink> (serverApp[i].Get (0))->GetTotalRx ();
+      totalPacketsThrough[i] = totalBytesRx / payloadSize;
+      throughput[i] = totalBytesRx * 8 / (duration* 1000000.0); //Mbit/s
+    }
 
     std::cout << std::setw (5) << i+1 <<
-    std::setw (12) << throughput <<
+    std::setw (12) << throughput[i] <<
     std::setw (12) << g_signalDbmAvg[num_sta*num_ap + i] <<
     std::setw (12) << g_noiseDbmAvg[num_sta*num_ap + i] <<
     std::setw (12) << (g_signalDbmAvg[num_sta*num_ap + i] - g_noiseDbmAvg[num_sta*num_ap + i]) <<
