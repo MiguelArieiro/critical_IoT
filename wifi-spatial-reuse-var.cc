@@ -61,6 +61,8 @@
 //
 
 #include <iomanip>
+#include <iostream>
+#include <vector>
 #include "ns3/core-module.h"
 #include "ns3/config-store-module.h"
 #include "ns3/network-module.h"
@@ -71,16 +73,15 @@
 #include "ns3/internet-module.h"
 
 using namespace ns3;
-uint32_t num_sta = 5;       //number os stations
-uint32_t num_ap = 2;       //number os stations
-std::vector<uint32_t> bytesReceived(num_sta*num_ap+num_ap);
+uint32_t numSta = 5;       //number os stations
+uint32_t numAp = 2;       //number os stations
 
 // Global variables for use in callbacks.
-std::vector<double> g_signalDbmAvg(num_sta*num_ap+num_ap);
-std::vector<double> g_noiseDbmAvg(num_sta*num_ap+num_ap);
-std::vector<uint32_t> g_samples(num_sta*num_ap+num_ap);
-std::vector <uint64_t>  totalPacketsThrough  (num_ap);
-std::vector <double> throughput (num_ap);
+std::vector<double> g_signalDbmAvg(numSta*numAp+numAp);
+std::vector<double> g_noiseDbmAvg(numSta*numAp+numAp);
+std::vector<uint32_t> g_samples(numSta*numAp+numAp);
+std::vector <uint64_t>  totalPacketsThrough  (numAp);
+std::vector <double> throughput (numAp);
 
 uint32_t ContextToNodeId(std::string context)
 {
@@ -104,11 +105,6 @@ void MonitorSniffRx (std::string context,
   g_signalDbmAvg[nodeId] += ((signalNoise.signal - g_signalDbmAvg[nodeId]) / g_samples[nodeId]);
   g_noiseDbmAvg[nodeId] += ((signalNoise.noise - g_noiseDbmAvg[nodeId]) / g_samples[nodeId]);
 }
-void SocketRx(std::string context, Ptr<const Packet> p, const Address &addr)
-{
-  uint32_t nodeId = ContextToNodeId(context);
-  bytesReceived[nodeId] += p->GetSize();
-}
 
 int main(int argc, char *argv[])
 {
@@ -124,7 +120,7 @@ int main(int argc, char *argv[])
   uint32_t mcs = 0;            // MCS value
   double interval = 0.001;     // seconds
   double obssPdThreshold = -72.0; // dBm
-  bool enableObssPd = true;
+  bool enableObssPd = true;    //spatial reuse
   bool udp = true;            //udp/tcp
 
   CommandLine cmd;
@@ -140,14 +136,16 @@ int main(int argc, char *argv[])
   cmd.AddValue("ccaEdTrAp", "CCA-ED Threshold of AP (dBm)", ccaEdTrAp);
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
   cmd.AddValue("udp", "UDP if set to 1, TCP otherwise", udp);
+  cmd.AddValue("numAp", "Number of Wifi Access Points",numAp);
+  cmd.AddValue("numSta", "Number of Wifi Stations per AP",numSta);
   cmd.Parse(argc, argv);
 
   //criar containers de access points e STA
   NodeContainer wifiStaNodes;
-  wifiStaNodes.Create(num_sta*num_ap);
+  wifiStaNodes.Create(numSta*numAp);
 
   NodeContainer wifiApNodes;
-  wifiApNodes.Create(num_ap);
+  wifiApNodes.Create(numAp);
 
   //spectrum definition
   SpectrumWifiPhyHelper spectrumPhy = SpectrumWifiPhyHelper::Default();
@@ -178,13 +176,13 @@ int main(int argc, char *argv[])
                                "DataMode", StringValue(oss.str()),
                                "ControlMode", StringValue(oss.str()));
   
-  std::vector <Ssid> ssid (num_ap); //The IEEE 802.11 SSID Information Element.
-  std::vector <NetDeviceContainer > staDevice (num_ap);
-  std::vector <NetDeviceContainer > apDevice (num_ap);
-  std::vector <Ptr<WifiNetDevice> > ap2Device (num_ap);
+  std::vector <Ssid> ssid (numAp); //The IEEE 802.11 SSID Information Element.
+  std::vector <NetDeviceContainer > staDevice (numAp);
+  std::vector <NetDeviceContainer > apDevice (numAp);
+  std::vector <Ptr<WifiNetDevice> > ap2Device (numAp);
   //Ptr<ApWifiMac> apWifiMac;
   
-  for (uint32_t i = 0; i < num_ap; i++){
+  for (uint32_t i = 0; i < numAp; i++){
     
 
     spectrumPhy.Set("TxPowerStart", DoubleValue(powSta));
@@ -199,9 +197,9 @@ int main(int argc, char *argv[])
 
     //creating STA net devices container
     staDevice[i] = NetDeviceContainer();
-    for (uint32_t j = 0; j < num_sta; j++)
+    for (uint32_t j = 0; j < numSta; j++)
     {
-      staDevice[i].Add(wifi.Install(spectrumPhy, mac, wifiStaNodes.Get(i*num_sta+j)));
+      staDevice[i].Add(wifi.Install(spectrumPhy, mac, wifiStaNodes.Get(i*numSta+j)));
     }
 
     //AP creation
@@ -245,35 +243,6 @@ int main(int argc, char *argv[])
   mobility.Install(wifiApNodes);
   mobility.Install(wifiStaNodes);
 
-/*   PacketSocketHelper packetSocket;
-  packetSocket.Install(wifiApNodes);
-  packetSocket.Install(wifiStaNodes);
-  ApplicationContainer apps;
-  TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
-
-  //BSS
-  for (uint32_t i = 0; i < num_ap; i++)
-  {
-    PacketSocketAddress socketAddr;
-    socketAddr.SetSingleDevice(staDevice[i].Get(0)->GetIfIndex());
-    socketAddr.SetPhysicalAddress(apDevice[i].Get(0)->GetAddress());
-    socketAddr.SetProtocol(1);
-    for (uint32_t j = 0; j < num_sta; j++)
-    {
-      Ptr<PacketSocketClient> client = CreateObject<PacketSocketClient>();
-      client->SetRemote(socketAddr);
-      wifiStaNodes.Get(i*num_sta+j)->AddApplication(client);
-      client->SetAttribute("PacketSize", UintegerValue(payloadSize));
-      client->SetAttribute("MaxPackets", UintegerValue(0));
-      client->SetAttribute("Interval", TimeValue(Seconds(interval)));
-    }
-
-    Ptr<PacketSocketServer> server = CreateObject<PacketSocketServer>();
-    server->SetLocal(socketAddr);
-    wifiApNodes.Get(i)->AddApplication(server);
-  } */
-  
-
   /* Internet stack*/
   InternetStackHelper stack;
   stack.Install (wifiApNodes);
@@ -285,8 +254,8 @@ int main(int argc, char *argv[])
   Ipv4InterfaceContainer apNodeInterface;
 
   /* Setting applications */
-  std::vector <ApplicationContainer> serverApp(num_ap);
-  for (uint32_t i = 0; i < num_ap; i++){
+  std::vector <ApplicationContainer> serverApp(numAp);
+  for (uint32_t i = 0; i < numAp; i++){
     apNodeInterface.Add(address.Assign (apDevice[i]));
      staNodeInterface = address.Assign (staDevice[i]);
     if (udp)
@@ -325,14 +294,14 @@ int main(int argc, char *argv[])
         onoff.SetAttribute ("Remote", remoteAddress);
         ApplicationContainer clientApp = onoff.Install (wifiStaNodes);
         clientApp.Start (Seconds (1.0));
-        clientApp.Stop (Seconds (duration+ 1));
+        clientApp.Stop (Seconds (duration + 1));
       }
   }
 
   //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback(&SocketRx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback (&MonitorSniffRx));
 
-  Simulator::Stop(Seconds(duration));
+  Simulator::Stop(Seconds(duration+1));
   Simulator::Run();
 
   Simulator::Destroy();
@@ -344,10 +313,8 @@ int main(int argc, char *argv[])
     std::setw (12) << "Noise (dBm)" <<
     std::setw (12) << "SNR (dB)" <<
     std::endl;
-  for (uint32_t i = 0; i < num_ap; i++)
+  for (uint32_t i = 0; i < numAp; i++)
   {
-    //double throughput = static_cast<double>(bytesReceived[num_sta*num_ap + i]) * 8 / 1000 / 1000 / duration;
-
     if (udp)
     {
       //UDP
@@ -364,9 +331,9 @@ int main(int argc, char *argv[])
 
     std::cout << std::setw (5) << i+1 <<
     std::setw (12) << throughput[i] <<
-    std::setw (12) << g_signalDbmAvg[num_sta*num_ap + i] <<
-    std::setw (12) << g_noiseDbmAvg[num_sta*num_ap + i] <<
-    std::setw (12) << (g_signalDbmAvg[num_sta*num_ap + i] - g_noiseDbmAvg[num_sta*num_ap + i]) <<
+    std::setw (12) << g_signalDbmAvg[numSta*numAp + i] <<
+    std::setw (12) << g_noiseDbmAvg[numSta*numAp + i] <<
+    std::setw (12) << (g_signalDbmAvg[numSta*numAp + i] - g_noiseDbmAvg[numSta*numAp + i]) <<
     std::endl;
 
   }
