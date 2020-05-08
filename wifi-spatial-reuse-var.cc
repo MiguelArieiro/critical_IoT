@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
   double interval = 0.001;     // seconds
   double obssPdThreshold = -72.0; // dBm
   bool enableObssPd = true;    //spatial reuse
-  bool udp = true;            //udp/tcp
+  bool udp = false;            //udp/tcp
 
   CommandLine cmd;
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
@@ -225,14 +225,15 @@ int main(int argc, char *argv[])
 
 
   MobilityHelper mobility;
-  Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
+  
+  /*Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
   positionAlloc->Add(Vector(-d3/2, 0.0, 0.0)); // AP1
   positionAlloc->Add(Vector(d3/2, 0.0, 0.0));  // AP2
 
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   mobility.SetPositionAllocator(positionAlloc);
   mobility.Install(wifiApNodes);
-
+*/
 
   // Position allocator for the start of the simulation
   mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
@@ -251,7 +252,8 @@ int main(int argc, char *argv[])
   mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
                              "PositionAllocator", PointerValue(&posAllocator));
 
-  mobility.Install (wifiStaNodes);
+  //mobility.Install (wifiStaNodes);
+  mobility.InstallAll();
 
   /* Internet stack*/
   InternetStackHelper stack;
@@ -308,9 +310,10 @@ int main(int argc, char *argv[])
       }
   }
 
-  LogComponentEnable("PacketSink", LOG_LEVEL_INFO);
-  LogComponentEnable("UdpServer", LOG_LEVEL_INFO);
-
+/*   LogComponentEnable("PacketSink", LOG_INFO);
+  LogComponentEnable("UdpServer", LOG_INFO);
+  LogComponentEnable("MobilityHelper", LOG_INFO); */
+  
   //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback(&SocketRx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback (&MonitorSniffRx));
 
