@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
   cmd.AddValue("numSta", "Number of Wifi Stations per AP",numSta);
   cmd.Parse(argc, argv);
 
+
   //criar containers de access points e STA
   NodeContainer wifiStaNodes;
   wifiStaNodes.Create(numSta*numAp);
@@ -225,23 +226,32 @@ int main(int argc, char *argv[])
 
   MobilityHelper mobility;
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-  positionAlloc->Add(Vector(0.0, 0.0, 0.0)); // AP1
-  positionAlloc->Add(Vector(d3, 0.0, 0.0));  // AP2
+  positionAlloc->Add(Vector(-d3/2, 0.0, 0.0)); // AP1
+  positionAlloc->Add(Vector(d3/2, 0.0, 0.0));  // AP2
 
-  positionAlloc->Add(Vector(0.0, d1, 0.0));      // STA1a
-  positionAlloc->Add(Vector(-d1, d1, 0.0));      // STA1b
-  positionAlloc->Add(Vector(0.0, -d1, 0.0));     // STA1c
-  positionAlloc->Add(Vector(-d1, -d1, 0.0));     // STA1d
-  positionAlloc->Add(Vector(-d1, 0.0, 0.0));     // STA1e
-  positionAlloc->Add(Vector(d3, d2, 0.0));       // STA2a
-  positionAlloc->Add(Vector(d3 + d2, d2, 0.0));  // STA2b
-  positionAlloc->Add(Vector(d3, -d2, 0.0));      // STA2c
-  positionAlloc->Add(Vector(d3 + d2, -d2, 0.0)); // STA2d
-  positionAlloc->Add(Vector(d3 + d2, 0.0, 0.0)); // STA2e
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   mobility.SetPositionAllocator(positionAlloc);
   mobility.Install(wifiApNodes);
-  mobility.Install(wifiStaNodes);
+
+
+  // Position allocator for the start of the simulation
+  mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
+                                 "X", StringValue ("150.0"),
+                                 "Y", StringValue ("150.0"),
+                                 "Rho", StringValue ("ns3::UniformRandomVariable[Min=0|Max=30]"));
+
+  // The position allocator that will be used by the RandomWaypointMobilityModel
+  GridPositionAllocator posAllocator;
+  posAllocator.SetMinX(-d3);
+  posAllocator.SetMinY(-d3);
+  posAllocator.SetDeltaX(5.0);
+  posAllocator.SetDeltaY(5.0);
+  posAllocator.SetLayoutType(ns3::GridPositionAllocator::ROW_FIRST);
+  
+  mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
+                             "PositionAllocator", PointerValue(&posAllocator));
+
+  mobility.Install (wifiStaNodes);
 
   /* Internet stack*/
   InternetStackHelper stack;
@@ -257,7 +267,7 @@ int main(int argc, char *argv[])
   std::vector <ApplicationContainer> serverApp(numAp);
   for (uint32_t i = 0; i < numAp; i++){
     apNodeInterface.Add(address.Assign (apDevice[i]));
-     staNodeInterface = address.Assign (staDevice[i]);
+    staNodeInterface = address.Assign (staDevice[i]);
     if (udp)
       {
         //UDP flow
@@ -297,6 +307,9 @@ int main(int argc, char *argv[])
         clientApp.Stop (Seconds (duration + 1));
       }
   }
+
+  LogComponentEnable("PacketSink", LOG_LEVEL_INFO);
+  LogComponentEnable("UdpServer", LOG_LEVEL_INFO);
 
   //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback(&SocketRx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback (&MonitorSniffRx));
