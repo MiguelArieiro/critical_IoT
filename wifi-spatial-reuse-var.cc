@@ -1,39 +1,7 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2019 University of Washington
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * Author: Sébastien Deronne <sebastien.deronne@gmail.com>
- */
-
-//
-//  This example program can be used to experiment with spatial
-//  reuse mechanisms of 802.11ax.
-//
-//  The geometry is as follows:
-//
-//                STA1          STA2
-//                 |              |
-//              d1 |              |d2
-//                 |       d3     |
-//                AP1 -----------AP2
-//
 //  STA1 and AP1 are in one BSS (with color set to 1), while STA2 and AP2 are in
 //  another BSS (with color set to 2). The distances are configurable (d1 through d3).
 //
-//  STA1 is continously transmitting data to AP1, while STA2 is continuously sending data to AP2.
+//  STAs are continuously sending data to APs.
 //  Each STA has configurable traffic loads (inter packet interval and packet size).
 //  It is also possible to configure TX power per node as well as their CCA-ED tresholds.
 //  OBSS_PD spatial reuse feature can be enabled (default) or disabled, and the OBSS_PD
@@ -44,15 +12,11 @@
 //  The following command will display all of the available run-time help options:
 //    ./waf --run "wifi-spatial-reuse --help"
 //
-//  By default, the script shows the benefit of the OBSS_PD spatial reuse script:
-//    ./waf --run wifi-spatial-reuse
-//    Throughput for BSS 1: 6.6468 Mbit/s
-//    Throughput for BSS 2: 6.6672 Mbit/s
+//  By default, the script shows the benefit of the OBSS_PD spatial reuse script
+//    ./waf --run wifi-spatial-reuse-var
 //
 // If one disables the OBSS_PD feature, a lower throughput is obtained per BSS:
 //    ./waf --run "wifi-spatial-reuse --enableObssPd=0"
-//    Throughput for BSS 1: 5.8692 Mbit/s
-//    Throughput for BSS 2: 5.9364 Mbit/s
 //
 // This difference between those results is because OBSS_PD spatial
 // enables to ignore transmissions from another BSS when the received power
@@ -71,18 +35,30 @@
 #include "ns3/mobility-module.h"
 #include "ns3/spectrum-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/energy-module.h"
+#include "ns3/config-store-module.h"
+#include "ns3/wifi-radio-energy-model-helper.h"
+#include "ns3/flow-monitor-helper.h"
+#include "ns3/gnuplot.h"
+#include "ns3/gnuplot-helper.h"
+#include "ns3/file-helper.h"
 
 using namespace ns3;
-uint32_t numSta = 5;       //number os stations
-uint32_t numAp = 2;       //number os stations
+uint32_t numSta = 5;       //number of stations
+uint32_t numAp = 2;       //number of stations
+uint32_t numNodes = numSta*numAp+numAp; //number of nodes
 
 // Global variables for use in callbacks.
-std::vector<double> g_signalDbmAvg(numSta*numAp+numAp);
-std::vector<double> g_noiseDbmAvg(numSta*numAp+numAp);
-std::vector<uint32_t> g_samples(numSta*numAp+numAp);
-std::vector <uint64_t>  totalPacketsThrough  (numAp);
-std::vector <double> throughput (numAp);
+std::vector<double> signalDbmAvg(numNodes);
+std::vector<double> noiseDbmAvg(numNodes);
 
+std::vector<uint64_t>  totalPacketsSent (numAp);
+std::vector<uint64_t>  totalPacketsThrough  (numAp);
+std::vector<double> throughput (numAp);
+std::vector<uint64_t> packetsReceived(numNodes);
+std::vector<uint64_t> packetsSent (numNodes);
+
+//trace fucntions for node id extraction
 uint32_t ContextToNodeId(std::string context)
 {
   std::string sub = context.substr(10);
@@ -90,20 +66,34 @@ uint32_t ContextToNodeId(std::string context)
   return atoi(sub.substr(0, pos).c_str());
 }
 
-
-
-void MonitorSniffRx (std::string context,
-                    Ptr<const Packet> packet,
-                    uint16_t channelFreqMhz,
-                    WifiTxVector txVector,
-                    MpduInfo aMpdu,
-                    SignalNoiseDbm signalNoise)
-
+//trace function for received packets and SNR
+void MonitorSniffRx (std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise)
 {
   uint32_t nodeId = ContextToNodeId(context);
-  g_samples[nodeId]++;
-  g_signalDbmAvg[nodeId] += ((signalNoise.signal - g_signalDbmAvg[nodeId]) / g_samples[nodeId]);
-  g_noiseDbmAvg[nodeId] += ((signalNoise.noise - g_noiseDbmAvg[nodeId]) / g_samples[nodeId]);
+  packetsReceived[nodeId]++;
+  signalDbmAvg[nodeId] += ((signalNoise.signal - signalDbmAvg[nodeId]) / packetsReceived[nodeId]);
+  noiseDbmAvg[nodeId] += ((signalNoise.noise - noiseDbmAvg[nodeId]) / packetsReceived[nodeId]);
+}
+
+//trace function for sent packets
+void MonitorSniffTx(std::string context, const Ptr< const Packet > packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu)
+{
+  uint32_t nodeId = ContextToNodeId(context);
+  packetsSent[nodeId]++;
+}
+
+/// Trace function for remaining energy at node.
+void RemainingEnergy (double oldValue, double remainingEnergy)
+{
+  NS_LOG_UNCOND (Simulator::Now ().GetSeconds ()
+                 << "s Current remaining energy = " << remainingEnergy << "J");
+}
+
+/// Trace function for total energy consumption at node.
+void TotalEnergy (double oldValue, double totalEnergy)
+{
+  NS_LOG_UNCOND (Simulator::Now ().GetSeconds ()
+                 << "s Total energy consumed by radio = " << totalEnergy << "J");
 }
 
 int main(int argc, char *argv[])
@@ -119,9 +109,9 @@ int main(int argc, char *argv[])
   uint32_t payloadSize = 1500; // bytes
   uint32_t mcs = 0;            // MCS value
   double interval = 0.001;     // seconds
-  double obssPdThreshold = -72.0; // dBm
+  double obssPdThreshold = -82.0; // dBm
   bool enableObssPd = true;    //spatial reuse
-  bool udp = false;            //udp/tcp
+  bool udp = false;            //udp or tcp
 
   CommandLine cmd;
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
@@ -142,13 +132,17 @@ int main(int argc, char *argv[])
 
 
   //criar containers de access points e STA
+  /***************************************************************************/
   NodeContainer wifiStaNodes;
   wifiStaNodes.Create(numSta*numAp);
 
   NodeContainer wifiApNodes;
   wifiApNodes.Create(numAp);
+  /***************************************************************************/
+
 
   //spectrum definition
+  /***************************************************************************/
   SpectrumWifiPhyHelper spectrumPhy = SpectrumWifiPhyHelper::Default();
   Ptr<MultiModelSpectrumChannel> spectrumChannel = CreateObject<MultiModelSpectrumChannel>();
   Ptr<FriisPropagationLossModel> lossModel = CreateObject<FriisPropagationLossModel>();
@@ -160,10 +154,12 @@ int main(int argc, char *argv[])
   spectrumPhy.SetErrorRateModel("ns3::YansErrorRateModel");
   spectrumPhy.Set("Frequency", UintegerValue(5180)); // channel 36 at 20 MHz
   spectrumPhy.SetPreambleDetectionModel("ns3::ThresholdPreambleDetectionModel");
+  /***************************************************************************/
+
 
   //creating wifi helper
   WifiHelper wifi;                                  //helps to create WifiNetDevice objects
-  wifi.SetStandard(WIFI_PHY_STANDARD_80211ax_5GHZ); //define standard como 802.11ax
+  wifi.SetStandard(WIFI_PHY_STANDARD_80211ax_5GHZ); //define standard como 802.11ax 5GHz
   if (enableObssPd)
   {
     wifi.SetObssPdAlgorithm("ns3::ConstantObssPdAlgorithm",
@@ -178,7 +174,7 @@ int main(int argc, char *argv[])
                                "ControlMode", StringValue(oss.str()));
   
   std::vector <Ssid> ssid (numAp); //The IEEE 802.11 SSID Information Element.
-  std::vector <NetDeviceContainer > staDevice (numAp);
+  NetDeviceContainer staDevice = NetDeviceContainer();
   std::vector <NetDeviceContainer > apDevice (numAp);
   std::vector <Ptr<WifiNetDevice> > ap2Device (numAp);
   //Ptr<ApWifiMac> apWifiMac;
@@ -196,11 +192,10 @@ int main(int argc, char *argv[])
     mac.SetType("ns3::StaWifiMac",
                 "Ssid", SsidValue(ssid[i]));
 
-    //creating STA net devices container
-    staDevice[i] = NetDeviceContainer();
+    
     for (uint32_t j = 0; j < numSta; j++)
     {
-      staDevice[i].Add(wifi.Install(spectrumPhy, mac, wifiStaNodes.Get(i*numSta+j)));
+      staDevice.Add(wifi.Install(spectrumPhy, mac, wifiStaNodes.Get(i*numSta+j)));
     }
 
     //AP creation
@@ -224,9 +219,31 @@ int main(int argc, char *argv[])
 }
 
 
+  /** Energy Model **/
+  /***************************************************************************/
+  /* energy source */
+  BasicEnergySourceHelper basicSourceHelper;
+  // configure energy source
+  basicSourceHelper.Set ("BasicEnergySourceInitialEnergyJ", DoubleValue (20));
+  // install source
+  EnergySourceContainer sources = basicSourceHelper.Install (wifiStaNodes);
+  /* device energy model */
+  WifiRadioEnergyModelHelper radioEnergyHelper;
+  // configure radio energy model
+  radioEnergyHelper.Set ("TxCurrentA", DoubleValue (0.0174));
+  // install device model
+  DeviceEnergyModelContainer deviceModels = DeviceEnergyModelContainer();
+  
+  deviceModels.Add(radioEnergyHelper.Install (staDevice, sources));
+  /***************************************************************************/
+
+
+  //mobility model
+  /***************************************************************************/
   MobilityHelper mobility;
   
-  /*Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
+/*
+  Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
   positionAlloc->Add(Vector(-d3/2, 0.0, 0.0)); // AP1
   positionAlloc->Add(Vector(d3/2, 0.0, 0.0));  // AP2
 
@@ -234,7 +251,7 @@ int main(int argc, char *argv[])
   mobility.SetPositionAllocator(positionAlloc);
   mobility.Install(wifiApNodes);
 */
-
+  
   // Position allocator for the start of the simulation
   mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
                                  "X", StringValue ("150.0"),
@@ -252,24 +269,29 @@ int main(int argc, char *argv[])
   mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
                              "PositionAllocator", PointerValue(&posAllocator));
 
-  //mobility.Install (wifiStaNodes);
+  mobility.Install (wifiStaNodes);
   mobility.InstallAll();
+  /***************************************************************************/
+
 
   /* Internet stack*/
+  /***************************************************************************/
   InternetStackHelper stack;
   stack.Install (wifiApNodes);
   stack.Install (wifiStaNodes);
 
   Ipv4AddressHelper address;
-  address.SetBase ("192.168.1.0", "255.255.255.0");
+  address.SetBase ("192.168.0.0", "255.255.0.0");
   Ipv4InterfaceContainer staNodeInterface;
   Ipv4InterfaceContainer apNodeInterface;
+  /***************************************************************************/
 
-  /* Setting applications */
+  /* Setting packet generator and sink applications */
+  /***************************************************************************/
   std::vector <ApplicationContainer> serverApp(numAp);
   for (uint32_t i = 0; i < numAp; i++){
-    apNodeInterface.Add(address.Assign (apDevice[i]));
-    staNodeInterface = address.Assign (staDevice[i]);
+    apNodeInterface.Add (address.Assign (apDevice[i]));
+    
     if (udp)
       {
         //UDP flow
@@ -279,13 +301,17 @@ int main(int argc, char *argv[])
         serverApp[i].Start (Seconds (0.0));
         serverApp[i].Stop (Seconds (duration + 1));
 
-        UdpClientHelper client (apNodeInterface.GetAddress (i), port);
-        client.SetAttribute ("MaxPackets", UintegerValue (0));
-        client.SetAttribute ("Interval", TimeValue(Seconds(interval))); //packets/s
-        client.SetAttribute ("PacketSize", UintegerValue (payloadSize));
-        ApplicationContainer clientApp = client.Install (wifiStaNodes);
-        clientApp.Start (Seconds (1.0));
-        clientApp.Stop (Seconds (duration + 1));
+        for (uint32_t j = 0; j< numSta; j++){
+          staNodeInterface.Add (address.Assign (staDevice.Get(i*numSta+j)));
+
+          UdpClientHelper client (apNodeInterface.GetAddress (i), port);
+          client.SetAttribute ("MaxPackets", UintegerValue (0));
+          client.SetAttribute ("Interval", TimeValue(Seconds(interval))); //packets/s
+          client.SetAttribute ("PacketSize", UintegerValue (payloadSize));
+          ApplicationContainer clientApp = client.Install (wifiStaNodes.Get(i*numSta+j));
+          clientApp.Start (Seconds (1.0));
+          clientApp.Stop (Seconds (duration + 1));
+        }
       }
     else
       {
@@ -297,38 +323,72 @@ int main(int argc, char *argv[])
         serverApp[i].Start (Seconds (0.0));
         serverApp[i].Stop (Seconds (duration + 1));
 
-        OnOffHelper onoff ("ns3::TcpSocketFactory", Ipv4Address::GetAny ());
-        onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
-        onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-        onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
-        onoff.SetAttribute ("DataRate", DataRateValue (1000000000)); //bit/s
-        AddressValue remoteAddress (InetSocketAddress (apNodeInterface.GetAddress (i), port));
-        onoff.SetAttribute ("Remote", remoteAddress);
-        ApplicationContainer clientApp = onoff.Install (wifiStaNodes);
-        clientApp.Start (Seconds (1.0));
-        clientApp.Stop (Seconds (duration + 1));
+        for (uint32_t j = 0; j< numSta; j++){
+          staNodeInterface.Add (address.Assign (staDevice.Get(i*numSta+j)));
+
+          OnOffHelper onoff ("ns3::TcpSocketFactory", Ipv4Address::GetAny ());
+          onoff.SetAttribute ("OnTime",  StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+          onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
+          onoff.SetAttribute ("PacketSize", UintegerValue (payloadSize));
+          onoff.SetAttribute ("DataRate", DataRateValue (1000000000)); //bit/s
+          AddressValue remoteAddress (InetSocketAddress (apNodeInterface.GetAddress (i), port));
+          onoff.SetAttribute ("Remote", remoteAddress);
+          ApplicationContainer clientApp = onoff.Install (wifiStaNodes.Get(i*numSta+j));
+          clientApp.Start (Seconds (1.0));
+          clientApp.Stop (Seconds (duration + 1));
+        }
       }
   }
+  /***************************************************************************/
 
-/*   LogComponentEnable("PacketSink", LOG_INFO);
-  LogComponentEnable("UdpServer", LOG_INFO);
-  LogComponentEnable("MobilityHelper", LOG_INFO); */
-  
-  //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback(&SocketRx));
+
+  /** connect trace sources **/
+  /***************************************************************************/
+  // all sources are connected to node 1
+  // energy source
+  for (uint32_t i = 0; i < numAp*numSta; i++){
+    Ptr<BasicEnergySource> basicSourcePtr = DynamicCast<BasicEnergySource> (sources.Get (i));
+    basicSourcePtr->TraceConnectWithoutContext ("RemainingEnergy", MakeCallback (&RemainingEnergy));
+    // device energy model
+    Ptr<DeviceEnergyModel> basicRadioModelPtr =
+      basicSourcePtr->FindDeviceEnergyModels ("ns3::WifiRadioEnergyModel").Get (0);
+    NS_ASSERT (basicRadioModelPtr != NULL);
+    basicRadioModelPtr->TraceConnectWithoutContext ("TotalEnergyConsumption", MakeCallback (&TotalEnergy));
+  } 
+  /***************************************************************************/
+
+
+  Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferTx", MakeCallback (&MonitorSniffTx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback (&MonitorSniffRx));
+
+
+  Ptr<FlowMonitor> flowMonitor;
+  FlowMonitorHelper flowHelper;
+  flowMonitor = flowHelper.InstallAll();
 
   Simulator::Stop(Seconds(duration+1));
   Simulator::Run();
 
-  Simulator::Destroy();
+  //energy logging
+  /***************************************************************************/
+  for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++){
+      double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
+      NS_LOG_UNCOND ("End of simulation (" << Simulator::Now ().GetSeconds ()
+                     << "s) Total energy consumed by radio = " << energyConsumed << "J");
+    }
+  /***************************************************************************/
 
 
+  //packet loss and snr logging
+  /***************************************************************************/
   std::cout << std::setw (5) << "index" <<
-    std::setw (12) << "Tput (Mb/s)" <<
-    std::setw (12) << "Signal (dBm)" <<
-    std::setw (12) << "Noise (dBm)" <<
-    std::setw (12) << "SNR (dB)" <<
-    std::endl;
+  std::setw (12) << "Tput (Mb/s)" <<
+  std::setw (12) << "Signal (dBm)" <<
+  std::setw (12) << "Noise (dBm)" <<
+  std::setw (12) << "SNR (dB)" <<
+  std::setw (12) << "Packet loss" <<
+  std::endl;
+
   for (uint32_t i = 0; i < numAp; i++)
   {
     if (udp)
@@ -345,14 +405,60 @@ int main(int argc, char *argv[])
       throughput[i] = totalBytesRx * 8 / (duration* 1000000.0); //Mbit/s
     }
 
+    for (uint32_t j = i*numSta; j < (1+i)*numSta; j++){
+      totalPacketsSent[i]+=packetsSent[j];
+    }
+
     std::cout << std::setw (5) << i+1 <<
     std::setw (12) << throughput[i] <<
-    std::setw (12) << g_signalDbmAvg[numSta*numAp + i] <<
-    std::setw (12) << g_noiseDbmAvg[numSta*numAp + i] <<
-    std::setw (12) << (g_signalDbmAvg[numSta*numAp + i] - g_noiseDbmAvg[numSta*numAp + i]) <<
+    std::setw (12) << signalDbmAvg[numSta*numAp + i] <<
+    std::setw (12) << noiseDbmAvg[numSta*numAp + i] <<
+    std::setw (12) << (signalDbmAvg[numSta*numAp + i] - noiseDbmAvg[numSta*numAp + i]) <<
+    std::setw (12) << (1-(float)totalPacketsThrough[i]/totalPacketsSent[i]) <<
+    std::setw (12) << totalPacketsThrough[i] <<
+    std::setw (12) << totalPacketsSent[i] <<
     std::endl;
 
   }
+  /***************************************************************************/
 
+//   std::string probeType = "ns3::Ipv4PacketProbe";
+//   std::string tracePath = "/NodeList/*/$ns3::Ipv4L3Protocol/Tx";
+
+// //output bytes logging
+//   GnuplotHelper plotHelper;
+//   plotHelper.PlotProbe (probeType,
+//                         tracePath,
+//                         "OutputBytes",
+//                         "Packet Byte Count",
+//                         GnuplotAggregator::KEY_BELOW);
+
+//   FileHelper fileHelper;
+//   fileHelper.ConfigureFile ("seventh-packet-byte-count",
+//                              FileAggregator::FORMATTED);
+//   fileHelper.Set2dFormat ("Time (Seconds) = %.3e\tPacket Byte Count = %.0f");
+//   fileHelper.WriteProbe (probeType,
+//                           tracePath,
+//                           "OutputBytes");
+
+
+/*
+  std::cout << std::setw (5) << "Node index" <<
+  std::setw (20) << "Packet loss" <<
+  std::setw (20) << "Energy" <<
+  std::setw (20) << "Test" <<
+  std::endl;
+
+  for (uint32_t i = 0; i < numNodes; i++)
+  {
+  std::cout << std::setw (5) << i <<
+  std::setw (20) << (packetsReceived[i]/packetsSent[i]) <<
+  std::setw (20) << 0 <<
+  std::setw (20) << (packetsReceived[i])  <<
+  std::endl;
+  }
+  */
+  
+  Simulator::Destroy();
   return 0;
 }
