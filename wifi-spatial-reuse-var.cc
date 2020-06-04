@@ -1,11 +1,10 @@
-//  STA1 and AP1 are in one BSS (with color set to 1), while STA2 and AP2 are in
-//  another BSS (with color set to 2). The distances are configurable (d1 through d3).
+//  STA# and AP# are in one BSS (with color set to #).
 //
 //  STAs are continuously sending data to APs.
 //  Each STA has configurable traffic loads (inter packet interval and packet size).
 //  It is also possible to configure TX power per node as well as their CCA-ED tresholds.
 //  OBSS_PD spatial reuse feature can be enabled (default) or disabled, and the OBSS_PD
-//  threshold can be set as well (default: -72 dBm).
+//  threshold can be set as well (default: -82 dBm).
 //  A simple Friis path loss model is used and a constant PHY rate is considered.
 //
 //  In general, the program can be configured at run-time by passing command-line arguments.
@@ -57,8 +56,12 @@ std::vector<uint64_t>  totalPacketsThrough  (numAp);
 std::vector<double> throughput (numAp);
 std::vector<uint64_t> packetsReceived(numNodes);
 std::vector<uint64_t> packetsSent (numNodes);
+/***************************************************************************/
 
-//trace fucntions for node id extraction
+
+// Trace functions
+/***************************************************************************/
+// Trace functions for node id extraction
 uint32_t ContextToNodeId(std::string context)
 {
   std::string sub = context.substr(10);
@@ -66,7 +69,7 @@ uint32_t ContextToNodeId(std::string context)
   return atoi(sub.substr(0, pos).c_str());
 }
 
-//trace function for received packets and SNR
+// Trace function for received packets and SNR
 void MonitorSniffRx (std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise)
 {
   uint32_t nodeId = ContextToNodeId(context);
@@ -75,26 +78,27 @@ void MonitorSniffRx (std::string context, Ptr<const Packet> packet, uint16_t cha
   noiseDbmAvg[nodeId] += ((signalNoise.noise - noiseDbmAvg[nodeId]) / packetsReceived[nodeId]);
 }
 
-//trace function for sent packets
+// Trace function for sent packets
 void MonitorSniffTx(std::string context, const Ptr< const Packet > packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu)
 {
   uint32_t nodeId = ContextToNodeId(context);
   packetsSent[nodeId]++;
 }
 
-/// Trace function for remaining energy at node.
+// Trace function for remaining energy at node.
 void RemainingEnergy (double oldValue, double remainingEnergy)
 {
   NS_LOG_UNCOND (Simulator::Now ().GetSeconds ()
                  << "s Current remaining energy = " << remainingEnergy << "J");
 }
 
-/// Trace function for total energy consumption at node.
+// Trace function for total energy consumption at node.
 void TotalEnergy (double oldValue, double totalEnergy)
 {
   NS_LOG_UNCOND (Simulator::Now ().GetSeconds ()
                  << "s Total energy consumed by radio = " << totalEnergy << "J");
 }
+/***************************************************************************/
 
 int main(int argc, char *argv[])
 {
@@ -112,6 +116,7 @@ int main(int argc, char *argv[])
   double obssPdThreshold = -82.0; // dBm
   bool enableObssPd = true;    //spatial reuse
   bool udp = false;            //udp or tcp
+  double batteryLevel = 20;      //initial battery energy
 
   CommandLine cmd;
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
@@ -160,19 +165,18 @@ int main(int argc, char *argv[])
   //creating wifi helper
   WifiHelper wifi;                                  //helps to create WifiNetDevice objects
   wifi.SetStandard(WIFI_PHY_STANDARD_80211ax_5GHZ); //define standard como 802.11ax 5GHz
-  if (enableObssPd)
-  {
-    wifi.SetObssPdAlgorithm("ns3::ConstantObssPdAlgorithm",
-                            "ObssPdLevel", DoubleValue(obssPdThreshold));
-  }
-
-  WifiMacHelper mac; //base class for all MAC-level wifi objects.
   std::ostringstream oss;
   oss << "HeMcs" << mcs;
   wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
                                "DataMode", StringValue(oss.str()),
                                "ControlMode", StringValue(oss.str()));
+
+  if (enableObssPd){
+    wifi.SetObssPdAlgorithm("ns3::ConstantObssPdAlgorithm",
+                            "ObssPdLevel", DoubleValue(obssPdThreshold));
+  }
   
+  WifiMacHelper mac; //base class for all MAC-level wifi objects.
   std::vector <Ssid> ssid (numAp); //The IEEE 802.11 SSID Information Element.
   NetDeviceContainer staDevice = NetDeviceContainer();
   std::vector <NetDeviceContainer > apDevice (numAp);
@@ -180,8 +184,6 @@ int main(int argc, char *argv[])
   //Ptr<ApWifiMac> apWifiMac;
   
   for (uint32_t i = 0; i < numAp; i++){
-    
-
     spectrumPhy.Set("TxPowerStart", DoubleValue(powSta));
     spectrumPhy.Set("TxPowerEnd", DoubleValue(powSta));
     spectrumPhy.Set("CcaEdThreshold", DoubleValue(ccaEdTrSta));
@@ -193,8 +195,7 @@ int main(int argc, char *argv[])
                 "Ssid", SsidValue(ssid[i]));
 
     
-    for (uint32_t j = 0; j < numSta; j++)
-    {
+    for (uint32_t j = 0; j < numSta; j++){
       staDevice.Add(wifi.Install(spectrumPhy, mac, wifiStaNodes.Get(i*numSta+j)));
     }
 
@@ -212,8 +213,7 @@ int main(int argc, char *argv[])
     //apWifiMac = ap2Device[i]->GetMac()->GetObject<ApWifiMac>();
 
     //Sets BSS color 
-    if (enableObssPd)
-    {
+    if (enableObssPd){
       ap2Device[i]->GetHeConfiguration()->SetAttribute("BssColor", UintegerValue(i+1));
     }
 }
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
   /* energy source */
   BasicEnergySourceHelper basicSourceHelper;
   // configure energy source
-  basicSourceHelper.Set ("BasicEnergySourceInitialEnergyJ", DoubleValue (20));
+  basicSourceHelper.Set ("BasicEnergySourceInitialEnergyJ", DoubleValue (batteryLevel));
   // install source
   EnergySourceContainer sources = basicSourceHelper.Install (wifiStaNodes);
   /* device energy model */
@@ -344,7 +344,6 @@ int main(int argc, char *argv[])
 
   /** connect trace sources **/
   /***************************************************************************/
-  // all sources are connected to node 1
   // energy source
   for (uint32_t i = 0; i < numAp*numSta; i++){
     Ptr<BasicEnergySource> basicSourcePtr = DynamicCast<BasicEnergySource> (sources.Get (i));
@@ -371,10 +370,10 @@ int main(int argc, char *argv[])
 
   //energy logging
   /***************************************************************************/
-  for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++){
-      double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
+  for (uint32_t i = 0; i < numSta*numAp; i++){
+      double energyConsumed = deviceModels.Get(i)->GetTotalEnergyConsumption ();
       NS_LOG_UNCOND ("End of simulation (" << Simulator::Now ().GetSeconds ()
-                     << "s) Total energy consumed by radio = " << energyConsumed << "J");
+                     << "s) - Node " << i << " - Total energy consumed by radio = " << energyConsumed << "J");
     }
   /***************************************************************************/
 
@@ -389,16 +388,12 @@ int main(int argc, char *argv[])
   std::setw (12) << "Packet loss" <<
   std::endl;
 
-  for (uint32_t i = 0; i < numAp; i++)
-  {
-    if (udp)
-    {
+  for (uint32_t i = 0; i < numAp; i++){
+    if (udp){
       //UDP
       totalPacketsThrough[i] = DynamicCast<UdpServer> (serverApp[i].Get (0))->GetReceived ();
       throughput[i] = totalPacketsThrough[i] * payloadSize * 8 / (duration * 1000000.0); //Mbit/s
-    }
-    else
-    {
+    }else{
       //TCP
       uint64_t totalBytesRx = DynamicCast<PacketSink> (serverApp[i].Get (0))->GetTotalRx ();
       totalPacketsThrough[i] = totalBytesRx / payloadSize;
@@ -418,7 +413,6 @@ int main(int argc, char *argv[])
     std::setw (12) << totalPacketsThrough[i] <<
     std::setw (12) << totalPacketsSent[i] <<
     std::endl;
-
   }
   /***************************************************************************/
 
