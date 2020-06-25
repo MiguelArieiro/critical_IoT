@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
   cmd.AddValue("ccaEdTrAp", "CCA-ED Threshold of AP (dBm)", ccaEdTrAp);
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
   cmd.AddValue("udp", "UDP if set to 1, TCP otherwise", udp);
+  cmd.AddValue("batteryLevel", "Initial energy level (J)", batteryLevel);
   cmd.AddValue("numAp", "Number of Wifi Access Points",numAp);
   cmd.AddValue("numSta", "Number of Wifi Stations per AP",numSta);
   cmd.Parse(argc, argv);
@@ -253,22 +254,24 @@ int main(int argc, char *argv[])
 */
   
   // Position allocator for the start of the simulation
-  mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
-                                 "X", StringValue ("150.0"),
-                                 "Y", StringValue ("150.0"),
-                                 "Rho", StringValue ("ns3::UniformRandomVariable[Min=0|Max=30]"));
+  // mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
+  //                                "X", StringValue ("150.0"),
+  //                                "Y", StringValue ("150.0"),
+  //                                "Rho", StringValue ("ns3::UniformRandomVariable[Min=0|Max=30]"));
 
-  // The position allocator that will be used by the RandomWaypointMobilityModel
-  GridPositionAllocator posAllocator;
-  posAllocator.SetMinX(-d3);
-  posAllocator.SetMinY(-d3);
-  posAllocator.SetDeltaX(5.0);
-  posAllocator.SetDeltaY(5.0);
-  posAllocator.SetLayoutType(ns3::GridPositionAllocator::ROW_FIRST);
+  // // The position allocator that will be used by the RandomWaypointMobilityModel
+  // GridPositionAllocator posAllocator;
+  // posAllocator.SetMinX(-d3);
+  // posAllocator.SetMinY(-d3);
+  // posAllocator.SetDeltaX(5.0);
+  // posAllocator.SetDeltaY(5.0);
+  // posAllocator.SetLayoutType(ns3::GridPositionAllocator::ROW_FIRST);
   
-  mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
-                             "PositionAllocator", PointerValue(&posAllocator));
+  // mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
+  //                            "PositionAllocator", PointerValue(&posAllocator));
 
+  
+  mobility.SetMobilityModel ("ns3::SteadyStateRandomWaypointMobilityModel","MaxX",DoubleValue(d3), "MaxY",DoubleValue(d3));
   mobility.Install (wifiStaNodes);
   mobility.InstallAll();
   /***************************************************************************/
