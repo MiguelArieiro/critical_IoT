@@ -102,21 +102,22 @@ void TotalEnergy (double oldValue, double totalEnergy)
 
 int main(int argc, char *argv[])
 {
-  double duration = 10.0;      // seconds
-  double d1 = 30.0;            // meters
-  double d2 = 30.0;            // meters
-  double d3 = 150.0;           // meters
-  double powSta = 10.0;       // dBm
-  double powAp = 21.0;        // dBm
-  double ccaEdTrSta = -62;    // dBm
-  double ccaEdTrAp = -62;     // dBm
-  uint32_t payloadSize = 1500; // bytes
-  uint32_t mcs = 0;            // MCS value
-  double interval = 0.001;     // seconds
+  double duration = 10.0;         // seconds
+  double d1 = 30.0;               // meters
+  double d2 = 30.0;               // meters
+  double d3 = 150.0;              // meters
+  double powSta = 10.0;           // dBm
+  double powAp = 21.0;            // dBm
+  double ccaEdTrSta = -62;        // dBm
+  double ccaEdTrAp = -62;         // dBm
+  uint32_t payloadSize = 1500;    // bytes
+  uint32_t mcs = 0;               // MCS value
+  double interval = 0.001;        // seconds
   double obssPdThreshold = -82.0; // dBm
-  bool enableObssPd = true;    //spatial reuse
-  bool udp = false;            //udp or tcp
-  double batteryLevel = 20;      //initial battery energy
+  bool enableObssPd = true;       // spatial reuse
+  bool udp = false;               // udp or tcp
+  double batteryLevel = 20;       // initial battery energy
+  int technology = 0;             // technology to be used 802.11ax = 0
 
   CommandLine cmd;
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
@@ -132,8 +133,9 @@ int main(int argc, char *argv[])
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
   cmd.AddValue("udp", "UDP if set to 1, TCP otherwise", udp);
   cmd.AddValue("batteryLevel", "Initial energy level (J)", batteryLevel);
-  cmd.AddValue("numAp", "Number of Wifi Access Points",numAp);
-  cmd.AddValue("numSta", "Number of Wifi Stations per AP",numSta);
+  cmd.AddValue("numAp", "Number of Wifi Access Points", numAp);
+  cmd.AddValue("numSta", "Number of Wifi Stations per AP", numSta);
+  cmd.AddValue("technology", "Select technology to be used. 802.11ax = 0, 5G = 1", technology);
   cmd.Parse(argc, argv);
 
 
