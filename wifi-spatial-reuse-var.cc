@@ -244,35 +244,7 @@ int main(int argc, char *argv[])
   //mobility model
   /***************************************************************************/
   MobilityHelper mobility;
-  
-/*
-  Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator>();
-  positionAlloc->Add(Vector(-d3/2, 0.0, 0.0)); // AP1
-  positionAlloc->Add(Vector(d3/2, 0.0, 0.0));  // AP2
 
-  mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-  mobility.SetPositionAllocator(positionAlloc);
-  mobility.Install(wifiApNodes);
-*/
-  
-  // Position allocator for the start of the simulation
-  // mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
-  //                                "X", StringValue ("150.0"),
-  //                                "Y", StringValue ("150.0"),
-  //                                "Rho", StringValue ("ns3::UniformRandomVariable[Min=0|Max=30]"));
-
-  // // The position allocator that will be used by the RandomWaypointMobilityModel
-  // GridPositionAllocator posAllocator;
-  // posAllocator.SetMinX(-d3);
-  // posAllocator.SetMinY(-d3);
-  // posAllocator.SetDeltaX(5.0);
-  // posAllocator.SetDeltaY(5.0);
-  // posAllocator.SetLayoutType(ns3::GridPositionAllocator::ROW_FIRST);
-  
-  // mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
-  //                            "PositionAllocator", PointerValue(&posAllocator));
-
-  
   mobility.SetMobilityModel ("ns3::SteadyStateRandomWaypointMobilityModel","MaxX",DoubleValue(d3), "MaxY",DoubleValue(d3));
   mobility.Install (wifiStaNodes);
   mobility.InstallAll();
