@@ -43,7 +43,7 @@
 #include "ns3/file-helper.h"
 
 using namespace ns3;
-uint32_t numSta = 5;                        //number of stations
+uint32_t numSta = 5;                        //number of stations per AP
 uint32_t numAp = 2;                         //number of stations
 uint32_t numNodes = numSta * numAp + numAp; //number of nodes
 
@@ -101,6 +101,7 @@ void TotalEnergy(double oldValue, double totalEnergy)
 
 int main(int argc, char *argv[])
 {
+  bool logging = false;           // enable logging
   double duration = 10.0;         // seconds
   double d1 = 30.0;               // meters
   double d2 = 30.0;               // meters
@@ -119,6 +120,7 @@ int main(int argc, char *argv[])
   int technology = 0;             // technology to be used 802.11ax = 0
 
   CommandLine cmd;
+  cmd.AddValue("logging", "Set to 1 to turn on logging", logging);
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
   cmd.AddValue("interval", "Inter packet interval (s)", interval);
   cmd.AddValue("enableObssPd", "Enable/disable OBSS_PD", enableObssPd);
@@ -231,7 +233,7 @@ int main(int argc, char *argv[])
   /* device energy model */
   WifiRadioEnergyModelHelper radioEnergyHelper;
   // configure radio energy model
-  radioEnergyHelper.Set("TxCurrentA", DoubleValue(0.0174));
+  radioEnergyHelper.Set("TxCurrentA", DoubleValue(0.0174)); //TODO set proper value
   // install device model
   DeviceEnergyModelContainer deviceModels = DeviceEnergyModelContainer();
 
@@ -273,7 +275,7 @@ int main(int argc, char *argv[])
       UdpServerHelper server(port);
       serverApp[i] = server.Install(wifiApNodes.Get(i));
       serverApp[i].Start(Seconds(0.0));
-      serverApp[i].Stop(Seconds(duration + 1));
+      serverApp[i].Stop(Seconds(duration));
 
       for (uint32_t j = 0; j < numSta; j++)
       {
@@ -284,7 +286,7 @@ int main(int argc, char *argv[])
         client.SetAttribute("Interval", TimeValue(Seconds(interval))); //packets/s
         client.SetAttribute("PacketSize", UintegerValue(payloadSize));
         ApplicationContainer clientApp = client.Install(wifiStaNodes.Get(i * numSta + j));
-        clientApp.Start(Seconds(1.0));
+        clientApp.Start(Seconds(0));
         clientApp.Stop(Seconds(duration + 1));
       }
     }
@@ -296,7 +298,7 @@ int main(int argc, char *argv[])
       PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", localAddress);
       serverApp[i] = packetSinkHelper.Install(wifiApNodes.Get(i));
       serverApp[i].Start(Seconds(0.0));
-      serverApp[i].Stop(Seconds(duration + 1));
+      serverApp[i].Stop(Seconds(duration));
 
       for (uint32_t j = 0; j < numSta; j++)
       {
@@ -319,28 +321,39 @@ int main(int argc, char *argv[])
 
   /** connect trace sources **/
   /***************************************************************************/
-  // energy source
+  //energy source
   for (uint32_t i = 0; i < numAp * numSta; i++)
   {
     Ptr<BasicEnergySource> basicSourcePtr = DynamicCast<BasicEnergySource>(sources.Get(i));
-    basicSourcePtr->TraceConnectWithoutContext("RemainingEnergy", MakeCallback(&RemainingEnergy));
+    
+    if (logging){
+      basicSourcePtr->TraceConnectWithoutContext("RemainingEnergy", MakeCallback(&RemainingEnergy));
+    }
+
     // device energy model
     Ptr<DeviceEnergyModel> basicRadioModelPtr =
         basicSourcePtr->FindDeviceEnergyModels("ns3::WifiRadioEnergyModel").Get(0);
     NS_ASSERT(basicRadioModelPtr != NULL);
-    basicRadioModelPtr->TraceConnectWithoutContext("TotalEnergyConsumption", MakeCallback(&TotalEnergy));
+
+    if (logging){
+      basicRadioModelPtr->TraceConnectWithoutContext("TotalEnergyConsumption", MakeCallback(&TotalEnergy));
+    }
+    
   }
   /***************************************************************************/
 
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferTx", MakeCallback(&MonitorSniffTx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
 
+  //flow monitor logging
+  /**************************************************************************/
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
 
   Simulator::Stop(Seconds(duration + 1));
   Simulator::Run();
+  flowMonitor->SerializeToXmlFile("testflow.xml", true, true);
 
   //energy logging
   /***************************************************************************/
@@ -354,7 +367,7 @@ int main(int argc, char *argv[])
 
   //packet loss and snr logging
   /***************************************************************************/
-  std::cout << std::setw(5) << "index" << std::setw(12) << "Tput (Mb/s)" << std::setw(12) << "Signal (dBm)" << std::setw(12) << "Noise (dBm)" << std::setw(12) << "SNR (dB)" << std::setw(12) << "Packet loss" << std::endl;
+  std::cout << std::setw(5) << "index" << std::setw(12) << "Tput (Mb/s)" << std::setw(12) << "Signal (dBm)" << std::setw(12) << "Noise (dBm)" << std::setw(12) << "SNR (dB)" << std::setw(12) << "Packet loss" << std::setw(12) << "Packets through" << std::setw(12) << "Packets sent" << std::endl;
 
   for (uint32_t i = 0; i < numAp; i++)
   {
