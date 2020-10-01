@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <iostream>
 #include <vector>
+#include <string>
 #include "ns3/core-module.h"
 #include "ns3/config-store-module.h"
 #include "ns3/network-module.h"
@@ -41,9 +42,11 @@
 #include "ns3/gnuplot.h"
 #include "ns3/gnuplot-helper.h"
 #include "ns3/file-helper.h"
+#include "ns3/csma-module.h"
+#include "ns3/olsr-helper.h"
 
 using namespace ns3;
-uint32_t numSta = 5;                        //number of stations per AP
+uint32_t numSta = 50;                        //number of stations per AP
 uint32_t numAp = 2;                         //number of stations
 uint32_t numNodes = numSta * numAp + numAp; //number of nodes
 
@@ -110,7 +113,8 @@ int main(int argc, char *argv[])
   double powAp = 21.0;            // dBm
   double ccaEdTrSta = -62;        // dBm
   double ccaEdTrAp = -62;         // dBm
-  uint32_t payloadSize = 1500;    // bytes
+  uint32_t TCPpayloadSize = 60;    // bytes
+  uint32_t UDPpayloadSize = 40;    // bytes
   uint32_t mcs = 0;               // MCS value
   double interval = 0.001;        // seconds
   double obssPdThreshold = -82.0; // dBm
@@ -146,7 +150,21 @@ int main(int argc, char *argv[])
 
   NodeContainer wifiApNodes;
   wifiApNodes.Create(numAp);
+
+  NodeContainer serverNode;
+  serverNode.Create(1);
   /***************************************************************************/
+  
+  //CSMA channel 
+  CsmaHelper csma;
+  csma.SetChannelAttribute ("DataRate", StringValue ("1000Mbps"));
+  csma.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
+
+  NetDeviceContainer csmaDevices;
+  csmaDevices = csma.Install(wifiApNodes);
+  csmaDevices.Add(csma.Install (serverNode));
+
+
 
   //spectrum definition
   /***************************************************************************/
@@ -255,36 +273,74 @@ int main(int argc, char *argv[])
   stack.Install(wifiApNodes);
   stack.Install(wifiStaNodes);
 
+  OlsrHelper olsr;
+  stack.SetRoutingHelper(olsr);
+  stack.Install(serverNode);
+
   Ipv4AddressHelper address;
-  address.SetBase("192.168.0.0", "255.255.0.0");
-  Ipv4InterfaceContainer staNodeInterface;
+  
+
+  Ipv4InterfaceContainer csmaNodeInterface;
+  address.SetBase("192.168.255.0", "255.255.255.0");
+  csmaNodeInterface = address.Assign (csmaDevices);
+
   Ipv4InterfaceContainer apNodeInterface;
+  address.SetBase("192.168.254.0", "255.255.255.0");
+  
+  for (uint32_t i = 0; i < numAp; i++)
+  {
+    apNodeInterface.Add(address.Assign(apDevice[i]));
+  }
+  
+
   /***************************************************************************/
+  
+
+  std::vector<Ipv4InterfaceContainer> staNodeInterface (numAp);
+  
 
   /* Setting packet generator and sink applications */
   /***************************************************************************/
-  std::vector<ApplicationContainer> serverApp(numAp);
+
+  ApplicationContainer serverApp;
+
+  uint16_t port;
+  if (udp)
+    {
+        //UDP flow
+      port = 9;
+      UdpServerHelper server(port);
+      serverApp = server.Install(serverNode.Get(0));
+      serverApp.Start(Seconds(0.0));
+      serverApp.Stop(Seconds(duration));
+    }
+    else
+    {
+      //TCP flow
+      port = 50000;
+      Address localAddress(InetSocketAddress(Ipv4Address::GetAny(), port));
+      PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", localAddress);
+      serverApp = packetSinkHelper.Install(serverNode.Get(0));
+      serverApp.Start(Seconds(0.0));
+      serverApp.Stop(Seconds(duration));
+    }
+  
   for (uint32_t i = 0; i < numAp; i++)
   {
+    std::string baseip = "192.168." + std::to_string(i+1) + ".0";
+    address.SetBase(baseip.c_str(), "255.255.255.0");
     apNodeInterface.Add(address.Assign(apDevice[i]));
 
     if (udp)
     {
-      //UDP flow
-      uint16_t port = 9;
-      UdpServerHelper server(port);
-      serverApp[i] = server.Install(wifiApNodes.Get(i));
-      serverApp[i].Start(Seconds(0.0));
-      serverApp[i].Stop(Seconds(duration));
-
       for (uint32_t j = 0; j < numSta; j++)
       {
-        staNodeInterface.Add(address.Assign(staDevice.Get(i * numSta + j)));
+        staNodeInterface[i].Add(address.Assign(staDevice.Get(i * numSta + j)));
 
-        UdpClientHelper client(apNodeInterface.GetAddress(i), port);
+        UdpClientHelper client(csmaNodeInterface.GetAddress(0), port);
         client.SetAttribute("MaxPackets", UintegerValue(0));
         client.SetAttribute("Interval", TimeValue(Seconds(interval))); //packets/s
-        client.SetAttribute("PacketSize", UintegerValue(payloadSize));
+        client.SetAttribute("PacketSize", UintegerValue(UDPpayloadSize));
         ApplicationContainer clientApp = client.Install(wifiStaNodes.Get(i * numSta + j));
         clientApp.Start(Seconds(0));
         clientApp.Stop(Seconds(duration + 1));
@@ -292,24 +348,16 @@ int main(int argc, char *argv[])
     }
     else
     {
-      //TCP flow
-      uint16_t port = 50000;
-      Address localAddress(InetSocketAddress(Ipv4Address::GetAny(), port));
-      PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", localAddress);
-      serverApp[i] = packetSinkHelper.Install(wifiApNodes.Get(i));
-      serverApp[i].Start(Seconds(0.0));
-      serverApp[i].Stop(Seconds(duration));
-
       for (uint32_t j = 0; j < numSta; j++)
       {
-        staNodeInterface.Add(address.Assign(staDevice.Get(i * numSta + j)));
+        staNodeInterface[i].Add(address.Assign(staDevice.Get(i * numSta + j)));
 
-        OnOffHelper onoff("ns3::TcpSocketFactory", Ipv4Address::GetAny());
+        OnOffHelper onoff("ns3::TcpSocketFactory", staNodeInterface[i].GetAddress(j));
         onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
         onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        onoff.SetAttribute("PacketSize", UintegerValue(payloadSize));
+        onoff.SetAttribute("PacketSize", UintegerValue(TCPpayloadSize));
         onoff.SetAttribute("DataRate", DataRateValue(1000000000)); //bit/s
-        AddressValue remoteAddress(InetSocketAddress(apNodeInterface.GetAddress(i), port));
+        AddressValue remoteAddress(InetSocketAddress(csmaNodeInterface.GetAddress(0), port));
         onoff.SetAttribute("Remote", remoteAddress);
         ApplicationContainer clientApp = onoff.Install(wifiStaNodes.Get(i * numSta + j));
         clientApp.Start(Seconds(1.0));
@@ -318,6 +366,7 @@ int main(int argc, char *argv[])
     }
   }
   /***************************************************************************/
+
 
   /** connect trace sources **/
   /***************************************************************************/
@@ -351,6 +400,7 @@ int main(int argc, char *argv[])
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
 
+  //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
   Simulator::Stop(Seconds(duration + 1));
   Simulator::Run();
   flowMonitor->SerializeToXmlFile("testflow.xml", true, true);
@@ -365,33 +415,34 @@ int main(int argc, char *argv[])
   }
   /***************************************************************************/
 
+  //TODO fix logging
   //packet loss and snr logging
   /***************************************************************************/
   std::cout << std::setw(5) << "index" << std::setw(12) << "Tput (Mb/s)" << std::setw(12) << "Signal (dBm)" << std::setw(12) << "Noise (dBm)" << std::setw(12) << "SNR (dB)" << std::setw(12) << "Packet loss" << std::setw(12) << "Packets through" << std::setw(12) << "Packets sent" << std::endl;
 
-  for (uint32_t i = 0; i < numAp; i++)
-  {
-    if (udp)
-    {
-      //UDP
-      totalPacketsThrough[i] = DynamicCast<UdpServer>(serverApp[i].Get(0))->GetReceived();
-      throughput[i] = totalPacketsThrough[i] * payloadSize * 8 / (duration * 1000000.0); //Mbit/s
-    }
-    else
-    {
-      //TCP
-      uint64_t totalBytesRx = DynamicCast<PacketSink>(serverApp[i].Get(0))->GetTotalRx();
-      totalPacketsThrough[i] = totalBytesRx / payloadSize;
-      throughput[i] = totalBytesRx * 8 / (duration * 1000000.0); //Mbit/s
-    }
+  // for (uint32_t i = 0; i < numAp; i++)
+  // {
+  //   if (udp)
+  //   {
+  //     //UDP
+  //     totalPacketsThrough[i] = DynamicCast<UdpServer>(apDevice[i].Get(0))->GetReceived();
+  //     throughput[i] = totalPacketsThrough[i] * UDPpayloadSize * 8 / (duration * 1000000.0); //Mbit/s
+  //   }
+  //   else
+  //   {
+  //     //TCP
+  //     uint64_t totalBytesRx = DynamicCast<PacketSink>(apDevice[i].Get(0))->GetTotalRx();
+  //     totalPacketsThrough[i] = totalBytesRx / TCPpayloadSize;
+  //     throughput[i] = totalBytesRx * 8 / (duration * 1000000.0); //Mbit/s
+  //   }
 
-    for (uint32_t j = i * numSta; j < (1 + i) * numSta; j++)
-    {
-      totalPacketsSent[i] += packetsSent[j];
-    }
+  //   for (uint32_t j = i * numSta; j < (1 + i) * numSta; j++)
+  //   {
+  //     totalPacketsSent[i] += packetsSent[j];
+  //   }
 
-    std::cout << std::setw(5) << i + 1 << std::setw(12) << throughput[i] << std::setw(12) << signalDbmAvg[numSta * numAp + i] << std::setw(12) << noiseDbmAvg[numSta * numAp + i] << std::setw(12) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(12) << (1 - (float)totalPacketsThrough[i] / totalPacketsSent[i]) << std::setw(12) << totalPacketsThrough[i] << std::setw(12) << totalPacketsSent[i] << std::endl;
-  }
+  //   std::cout << std::setw(5) << i + 1 << std::setw(12) << throughput[i] << std::setw(12) << signalDbmAvg[numSta * numAp + i] << std::setw(12) << noiseDbmAvg[numSta * numAp + i] << std::setw(12) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(12) << (1 - (float)totalPacketsThrough[i] / totalPacketsSent[i]) << std::setw(12) << totalPacketsThrough[i] << std::setw(12) << totalPacketsSent[i] << std::endl;
+  // }
   /***************************************************************************/
 
   //   std::string probeType = "ns3::Ipv4PacketProbe";
