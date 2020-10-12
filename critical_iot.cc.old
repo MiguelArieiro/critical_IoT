@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
 
   if (technology == 0)
   {
-    wifi.SetStandard(WIFI_PHY_STANDARD_80211ax_5GHZ); //define standard como 802.11ax 5GHz
+    wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ); //define standard como 802.11ax 5GHz
     std::ostringstream oss;
     oss << "HeMcs" << mcs;
     wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
@@ -200,11 +200,11 @@ int main(int argc, char *argv[])
   }
   else if (technology == 2)
   {
-    wifi.SetStandard(WIFI_PHY_STANDARD_80211n_2_4GHZ);
+    wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
   }
   else if (technology == 3)
   {
-    wifi.SetStandard(WIFI_PHY_STANDARD_80211n_5GHZ);
+    wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
   }
   else
   {
