@@ -275,22 +275,47 @@ int main(int argc, char *argv[])
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   mobility.Install(wifiApNodes);
 
+  // Routing
   InternetStackHelper stack;
+  
+
+  Ipv4StaticRoutingHelper staticRoutingHelper;
   stack.Install(csmaNodes);
+  stack.SetRoutingHelper (staticRoutingHelper);
   stack.Install(wifiStaNodes);
 
   Ipv4AddressHelper address;
-
   address.SetBase("10.1.1.0", "255.255.255.0");
+
   Ipv4InterfaceContainer csmaInterfaces;
   csmaInterfaces = address.Assign(csmaDevices);
 
   address.SetBase("172.1.1.0", "255.255.255.0");
   for (uint32_t i = 0; i < numAp; i++)
   {
-    address.Assign(StaDevices[i]);
     address.Assign(ApDevices.Get(i));
+    address.Assign(StaDevices[i]);
     address.NewNetwork();
+  }
+
+//TODO fix this 
+// static routing
+  NodeContainer::Iterator iter;
+  
+  for (uint32_t i = 0; i < numAp; i++)
+  {
+    Ptr<Ipv4StaticRouting> staticRouting;
+    std::string wifiApIP = "172.1." + std::to_string(i+1) + ".1";
+    std::string csmaApIP = "10.1.1." + std::to_string(i+1);
+    for (uint32_t j = 0; j < numSta; j++)
+      {
+        staticRouting = Ipv4RoutingHelper::GetRouting <Ipv4StaticRouting> (wifiStaNodes.Get(i * numSta + j)->GetObject<Ipv4> ()->GetRoutingProtocol ());
+        staticRouting->SetDefaultRoute (wifiApIP.c_str(), 1);
+      }
+
+      staticRouting = Ipv4RoutingHelper::GetRouting <Ipv4StaticRouting> (csmaNodes.Get(numAp)->GetObject<Ipv4> ()->GetRoutingProtocol ());
+      //staticRouting->SetDefaultRoute ("10.1.1.2", 1);
+      staticRouting->AddNetworkRouteTo(wifiApIP.c_str(), "255.255.255.0", csmaApIP.c_str(), 1);
   }
 
   //server
@@ -364,7 +389,7 @@ int main(int argc, char *argv[])
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
-  Ipv4GlobalRoutingHelper::PopulateRoutingTables();
+  //Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
   Simulator::Stop(Seconds(duration + 1));
 
