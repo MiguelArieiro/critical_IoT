@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <iostream>
 #include <vector>
+#include <cmath>
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/applications-module.h"
@@ -48,9 +49,9 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("Critical IoT Scenario");
 
-uint32_t numSta = 2;                            //number of stations per AP
-uint32_t numAp = 2;                             //number of stations
-uint32_t numNodes = numSta * numAp + numAp + 1; //number of nodes
+int32_t numSta = 50;                           //number of stations per AP
+int32_t numAp = 2;                             //number of stations
+int32_t numNodes = numSta * numAp + numAp + 1; //number of nodes
 
 // Global variables for use in callbacks.
 std::vector<double> signalDbmAvg(numNodes);
@@ -66,17 +67,17 @@ std::vector<uint64_t> packetsSent(numNodes);
 // Trace functions
 /***************************************************************************/
 // Trace function for node id extraction
-uint32_t ContextToNodeId(std::string context)
+int32_t ContextToNodeId(std::string context)
 {
   std::string sub = context.substr(10);
-  uint32_t pos = sub.find("/Device");
+  int32_t pos = sub.find("/Device");
   return atoi(sub.substr(0, pos).c_str());
 }
 
 // Trace function for received packets and SNR
 void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise)
 {
-  uint32_t nodeId = ContextToNodeId(context);
+  int32_t nodeId = ContextToNodeId(context);
   packetsReceived[nodeId]++;
   signalDbmAvg[nodeId] += ((signalNoise.signal - signalDbmAvg[nodeId]) / packetsReceived[nodeId]);
   noiseDbmAvg[nodeId] += ((signalNoise.noise - noiseDbmAvg[nodeId]) / packetsReceived[nodeId]);
@@ -85,7 +86,7 @@ void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t chan
 // Trace function for sent packets
 void MonitorSniffTx(std::string context, const Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu)
 {
-  uint32_t nodeId = ContextToNodeId(context);
+  int32_t nodeId = ContextToNodeId(context);
   packetsSent[nodeId]++;
 }
 
@@ -108,26 +109,27 @@ int main(int argc, char *argv[])
 {
   bool verbose = true;
   bool tracing = false;
-  double duration = 10.0;       // seconds
-  double powSta = 10.0;         // dBm
-  double powAp = 21.0;          // dBm
-  double ccaEdTrSta = -62;      // dBm
-  double ccaEdTrAp = -62;       // dBm
-  uint32_t TCPpayloadSize = 60; // bytes
-  uint32_t UDPpayloadSize = 40;   // bytes
-  uint32_t mcs = 0; // MCS value
-  // double interval = 0.001;        // seconds
+  double duration = 10.0;         // seconds
+  double powSta = 10.0;           // dBm
+  double powAp = 21.0;            // dBm
+  double ccaEdTrSta = -62;        // dBm
+  double ccaEdTrAp = -62;         // dBm
+  int32_t TCPpayloadSize = 60;    // bytes
+  int32_t UDPpayloadSize = 40;    // bytes
+  int32_t mcs = 0;                // MCS value
+  int64_t dataRate = 1000000;     // bits/s
   double obssPdThreshold = -82.0; // dBm
   bool enableObssPd = true;       // spatial reuse
   bool udp = false;               // udp or tcp
   double batteryLevel = 20;       // initial battery energy
-  int technology = 0; // technology to be used 802.11ax = 0, 5G = 1;
+  int technology = 0;             // technology to be used 802.11ax = 0, 5G = 1;
+  double distance = 10;           // mobility model quadrant size
 
   CommandLine cmd(__FILE__);
   cmd.AddValue("verbose", "Tell echo applications to log if true", verbose);
   cmd.AddValue("tracing", "Enable pcap tracing", tracing);
   cmd.AddValue("duration", "Duration of simulation (s)", duration);
-  // cmd.AddValue("interval", "Inter packet interval (s)", interval);
+  cmd.AddValue("dataRate", "Data rate (bits/s)", dataRate);
   cmd.AddValue("enableObssPd", "Enable/disable OBSS_PD", enableObssPd);
   cmd.AddValue("powSta", "Power of STA (dBm)", powSta);
   cmd.AddValue("powAp", "Power of AP (dBm)", powAp);
@@ -139,18 +141,12 @@ int main(int argc, char *argv[])
   cmd.AddValue("numAp", "Number of Wifi Access Points", numAp);
   cmd.AddValue("numSta", "Number of Wifi Stations per AP", numSta);
   cmd.AddValue("technology", "Select technology to be used. 0 = 802.11ax, 1 = 5G, 2 = 802.11n 2.4GHz, 3 = 802.11n 5GHz", technology);
+  cmd.AddValue("distance", "distance between networks", distance);
+  cmd.AddValue("TCPpayloadSize", "TCP packet size", TCPpayloadSize);
+  cmd.AddValue("UDPpayloadSize", "UDP packet size", UDPpayloadSize);
   cmd.Parse(argc, argv);
 
-  cmd.Parse(argc, argv);
-
-  // The underlying restriction of 18 is due to the grid position
-  // allocator's configuration; the grid layout will exceed the
-  // bounding box if more than 18 nodes are provided.
-  if ((numAp * numSta) > 18)
-  {
-    std::cout << "nWifi should be 18 or less; otherwise grid layout exceeds the bounding box" << std::endl;
-    return 1;
-  }
+  numNodes = numSta * numAp + numAp + 1;  //updating numNodes
 
   if (verbose)
   {
@@ -174,13 +170,20 @@ int main(int argc, char *argv[])
   NetDeviceContainer csmaDevices;
   csmaDevices = csma.Install(csmaNodes);
 
-  YansWifiChannelHelper channel = YansWifiChannelHelper::Default();
-  YansWifiPhyHelper phy = YansWifiPhyHelper::Default();
-  phy.SetChannel(channel.Create());
+  //spectrum definition
+  /***************************************************************************/
+  SpectrumWifiPhyHelper phy = SpectrumWifiPhyHelper::Default();
+  Ptr<MultiModelSpectrumChannel> spectrumChannel = CreateObject<MultiModelSpectrumChannel>();
+  Ptr<FriisPropagationLossModel> lossModel = CreateObject<FriisPropagationLossModel>();
+  spectrumChannel->AddPropagationLossModel(lossModel);
+  Ptr<ConstantSpeedPropagationDelayModel> delayModel = CreateObject<ConstantSpeedPropagationDelayModel>();
+  spectrumChannel->SetPropagationDelayModel(delayModel);
 
+  phy.SetChannel(spectrumChannel);
   phy.SetErrorRateModel("ns3::YansErrorRateModel");
   phy.Set("Frequency", UintegerValue(5180)); // channel 36 at 20 MHz
   phy.SetPreambleDetectionModel("ns3::ThresholdPreambleDetectionModel");
+  /***************************************************************************/
 
   WifiHelper wifi;
   //wifi.SetRemoteStationManager ("ns3::AarfWifiManager");
@@ -220,7 +223,7 @@ int main(int argc, char *argv[])
   NetDeviceContainer ApDevices = NetDeviceContainer();
 
   std::vector<Ptr<WifiNetDevice>> ap2Device(numAp);
-  for (uint32_t i = 0; i < numAp; i++)
+  for (int32_t i = 0; i < numAp; i++)
   {
     ssid = Ssid(std::to_string(i)); //The IEEE 802.11 SSID Information Element.
 
@@ -234,7 +237,7 @@ int main(int argc, char *argv[])
 
     mac.SetType("ns3::StaWifiMac", "Ssid", SsidValue(ssid), "ActiveProbing", BooleanValue(false));
 
-    for (uint32_t j = 0; j < numSta; j++)
+    for (int32_t j = 0; j < numSta; j++)
     {
       StaDevices[i].Add(wifi.Install(phy, mac, wifiStaNodes.Get(i * numSta + j)));
     }
@@ -252,7 +255,7 @@ int main(int argc, char *argv[])
     //Sets BSS color
     if ((technology == 0) && enableObssPd)
     {
-      ap2Device[i] = ApDevices.Get(i)->GetObject<WifiNetDevice>(); //TOFIX
+      ap2Device[i] = ApDevices.Get(i)->GetObject<WifiNetDevice>();
       ap2Device[i]->GetHeConfiguration()->SetAttribute("BssColor", UintegerValue(i + 1));
     }
   }
@@ -260,28 +263,48 @@ int main(int argc, char *argv[])
   /** Configure mobility model **/
   MobilityHelper mobility;
 
+  int32_t edge_size = (ceil(sqrt(numAp)));
+  int32_t sta_edge_size = (ceil(sqrt(numSta)));
+  int32_t counter = 0;
+  for (int32_t y = 0; (y < edge_size) && (counter < numAp); y++)
+  {
+    for (int32_t x = 0; (x < edge_size) && (counter < numAp); x++, counter++)
+    {
+      //positionAlloc->Add(Vector((double)x*distance, (double)y*distance, 0.0));
+      mobility.SetPositionAllocator("ns3::GridPositionAllocator",
+                                    "MinX", DoubleValue((x - 1) * distance),
+                                    "MinY", DoubleValue((y - 1) * distance),
+                                    "DeltaX", DoubleValue(2 * distance / sta_edge_size),
+                                    "DeltaY", DoubleValue(2 * distance / sta_edge_size),
+                                    "GridWidth", UintegerValue(sta_edge_size),
+                                    "LayoutType", StringValue("RowFirst"));
+
+      mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
+                                "Bounds", RectangleValue(Rectangle((x - 1) * distance - 1, (x + 1) * distance + 1, (y - 1) * distance - 1, (y + 1) * distance + 1)));
+      for (int32_t j = 0; j < numSta; j++)
+      {
+        std::cout << "x:" << x << " y:" << y << " distance:" << distance << "\n";
+        mobility.Install(wifiStaNodes.Get(counter * numSta + j));
+      }
+    }
+  }
+
   mobility.SetPositionAllocator("ns3::GridPositionAllocator",
-                                "MinX", DoubleValue(0.0),
-                                "MinY", DoubleValue(0.0),
-                                "DeltaX", DoubleValue(5.0),
-                                "DeltaY", DoubleValue(10.0),
-                                "GridWidth", UintegerValue(3),
+                                "MinX", DoubleValue(0),
+                                "MinY", DoubleValue(0),
+                                "DeltaX", DoubleValue(2 * distance),
+                                "DeltaY", DoubleValue(2 * distance),
+                                "GridWidth", UintegerValue(edge_size),
                                 "LayoutType", StringValue("RowFirst"));
-
-  mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
-                            "Bounds", RectangleValue(Rectangle(-50, 50, -50, 50)));
-  mobility.Install(wifiStaNodes);
-
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   mobility.Install(wifiApNodes);
-
+  std::cout << "wifi crash?\n";
   // Routing
   InternetStackHelper stack;
-  
 
   Ipv4StaticRoutingHelper staticRoutingHelper;
   stack.Install(csmaNodes);
-  stack.SetRoutingHelper (staticRoutingHelper);
+  stack.SetRoutingHelper(staticRoutingHelper);
   stack.Install(wifiStaNodes);
 
   Ipv4AddressHelper address;
@@ -291,50 +314,67 @@ int main(int argc, char *argv[])
   csmaInterfaces = address.Assign(csmaDevices);
 
   address.SetBase("172.1.1.0", "255.255.255.0");
-  for (uint32_t i = 0; i < numAp; i++)
+  for (int32_t i = 0; i < numAp; i++)
   {
     address.Assign(ApDevices.Get(i));
     address.Assign(StaDevices[i]);
     address.NewNetwork();
   }
 
-//TODO fix this 
-// static routing
+  // static routing
   NodeContainer::Iterator iter;
-  
-  for (uint32_t i = 0; i < numAp; i++)
+
+  for (int32_t i = 0; i < numAp; i++)
   {
     Ptr<Ipv4StaticRouting> staticRouting;
-    std::string wifiApIP = "172.1." + std::to_string(i+1) + ".1";
-    std::string csmaApIP = "10.1.1." + std::to_string(i+1);
-    for (uint32_t j = 0; j < numSta; j++)
-      {
-        staticRouting = Ipv4RoutingHelper::GetRouting <Ipv4StaticRouting> (wifiStaNodes.Get(i * numSta + j)->GetObject<Ipv4> ()->GetRoutingProtocol ());
-        staticRouting->SetDefaultRoute (wifiApIP.c_str(), 1);
-      }
+    std::string wifiApIP = "172.1." + std::to_string(i + 1) + ".1";
+    std::string csmaApIP = "10.1.1." + std::to_string(i + 1);
+    for (int32_t j = 0; j < numSta; j++)
+    {
+      staticRouting = Ipv4RoutingHelper::GetRouting<Ipv4StaticRouting>(wifiStaNodes.Get(i * numSta + j)->GetObject<Ipv4>()->GetRoutingProtocol());
+      staticRouting->SetDefaultRoute(wifiApIP.c_str(), 1);
+    }
 
-      staticRouting = Ipv4RoutingHelper::GetRouting <Ipv4StaticRouting> (csmaNodes.Get(numAp)->GetObject<Ipv4> ()->GetRoutingProtocol ());
-      //staticRouting->SetDefaultRoute ("10.1.1.2", 1);
-      staticRouting->AddNetworkRouteTo(wifiApIP.c_str(), "255.255.255.0", csmaApIP.c_str(), 1);
+    staticRouting = Ipv4RoutingHelper::GetRouting<Ipv4StaticRouting>(csmaNodes.Get(numAp)->GetObject<Ipv4>()->GetRoutingProtocol());
+    //staticRouting->SetDefaultRoute ("10.1.1.2", 1);
+    staticRouting->AddNetworkRouteTo(wifiApIP.c_str(), "255.255.255.0", csmaApIP.c_str(), 1);
   }
 
   //server
-  PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 5000));
-  ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
-  serverApps.Start(Seconds(0));
-  serverApps.Stop(Seconds(duration + 1));
+  if (udp){
+    PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 9));
+    ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
+    serverApps.Start(Seconds(0));
+    serverApps.Stop(Seconds(duration + 1));
 
-  //client
-  OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 5000)));
-  onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-  onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-  onoff.SetAttribute("PacketSize", UintegerValue(TCPpayloadSize));
-  onoff.SetAttribute("DataRate", DataRateValue(100000)); //bit/s
+    //client
+    OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 9)));
+    onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
+    onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
+    onoff.SetAttribute("PacketSize", UintegerValue(UDPpayloadSize));
+    onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-  ApplicationContainer clientApps = onoff.Install(wifiStaNodes);
-  clientApps.Start(Seconds(1.0));
-  clientApps.Stop(Seconds(duration + 1));
+    ApplicationContainer clientApps = onoff.Install(wifiStaNodes);
+    clientApps.Start(Seconds(1.0));
+    clientApps.Stop(Seconds(duration + 1));
+  }
+  else{
+    PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 5000));
+    ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
+    serverApps.Start(Seconds(0));
+    serverApps.Stop(Seconds(duration + 1));
 
+    //client
+    OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 5000)));
+    onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
+    onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
+    onoff.SetAttribute("PacketSize", UintegerValue(TCPpayloadSize));
+    onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
+
+    ApplicationContainer clientApps = onoff.Install(wifiStaNodes);
+    clientApps.Start(Seconds(1.0));
+    clientApps.Stop(Seconds(duration + 1));
+  }
 
   /** Energy Model **/
   /***************************************************************************/
@@ -351,18 +391,20 @@ int main(int argc, char *argv[])
   // install device model
   DeviceEnergyModelContainer deviceModels = DeviceEnergyModelContainer();
 
-  for (uint32_t i = 0; i < numAp; i++){
-    for (uint32_t j = 0; j < numSta; j++){
-      deviceModels.Add(radioEnergyHelper.Install(StaDevices[i].Get(j), sources.Get(j+i*numSta)));
+  for (int32_t i = 0; i < numAp; i++)
+  {
+    for (int32_t j = 0; j < numSta; j++)
+    {
+      deviceModels.Add(radioEnergyHelper.Install(StaDevices[i].Get(j), sources.Get(j + i * numSta)));
     }
   }
-  
+
   /***************************************************************************/
 
   /** connect trace sources **/
   /***************************************************************************/
   //energy source
-  for (uint32_t i = 0; i < numAp * numSta; i++)
+  for (int32_t i = 0; i < numAp * numSta; i++)
   {
     Ptr<BasicEnergySource> basicSourcePtr = DynamicCast<BasicEnergySource>(sources.Get(i));
 
@@ -395,18 +437,18 @@ int main(int argc, char *argv[])
 
   if (tracing == true)
   {
-    //pointToPoint.EnablePcapAll ("third");
-    phy.EnablePcap("third", ApDevices);
-    csma.EnablePcap("third", csmaDevices, true);
+    phy.EnablePcap("critical_iot", ApDevices);
+    csma.EnablePcap("critical_iot", csmaDevices, true);
   }
 
+  std::cout << "code???\n";
   Simulator::Run();
 
   flowMonitor->SerializeToXmlFile("testflow.xml", true, true);
 
-   std::cout << std::setw(10) << "index" << std::setw(15) << "Tput (Mb/s)" << std::setw(15) << "Signal (dBm)" << std::setw(15) << "Noise (dBm)" << std::setw(15) << "SNR (dB)" << std::setw(15) << "Packet loss" << std::setw(15) << "Packets through" << std::setw(15) << "Packets sent" << std::endl;
+  std::cout << std::setw(10) << "index" << std::setw(15) << "Tput (Mb/s)" << std::setw(15) << "Signal (dBm)" << std::setw(15) << "Noise (dBm)" << std::setw(15) << "SNR (dB)" << std::setw(15) << "Packet loss" << std::setw(15) << "Packets through" << std::setw(15) << "Packets sent" << std::endl;
 
-  for (uint32_t i = 0; i < numAp; i++)
+  for (int32_t i = 0; i < numAp; i++)
   {
     totalPacketsThrough[i] = packetsReceived[numNodes - numAp - 1 + i];
 
@@ -426,16 +468,13 @@ int main(int argc, char *argv[])
       throughput[i] = totalPacketsThrough[i] * TCPpayloadSize * 8 / (duration * 1000000.0); //Mbit/s
     }
 
-    for (uint32_t j = i * numSta; j < (1 + i) * numSta; j++)
+    for (int32_t j = i * numSta; j < (1 + i) * numSta; j++)
     {
       totalPacketsSent[i] += packetsSent[j];
     }
 
-
-
     std::cout << std::setw(10) << i + 1 << std::setw(15) << throughput[i] << std::setw(15) << signalDbmAvg[numSta * numAp + i] << std::setw(15) << noiseDbmAvg[numSta * numAp + i] << std::setw(15) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(15) << (1 - (float)totalPacketsThrough[i] / totalPacketsSent[i]) << std::setw(15) << totalPacketsThrough[i] << std::setw(15) << totalPacketsSent[i] << std::endl;
   }
-
 
   Simulator::Destroy();
   return 0;
