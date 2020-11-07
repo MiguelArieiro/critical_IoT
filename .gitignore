@@ -1,7 +1,7 @@
 
 desktop.ini
 .DS_Store
-.vscode/
+.vs*/
 subdir/
 debug.log
 scratch-simulator.cc

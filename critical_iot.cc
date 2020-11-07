@@ -49,7 +49,7 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("Critical IoT Scenario");
 
-int32_t numSta = 50;                           //number of stations per AP
+int32_t numSta = 100;                          //number of stations per AP
 int32_t numAp = 2;                             //number of stations
 int32_t numNodes = numSta * numAp + numAp + 1; //number of nodes
 
@@ -114,6 +114,8 @@ int main(int argc, char *argv[])
   double powAp = 21.0;            // dBm
   double ccaEdTrSta = -62;        // dBm
   double ccaEdTrAp = -62;         // dBm
+  double rxSensSta = -92;         // dBm
+  double rxSensAp = -92;          // dBm
   int32_t TCPpayloadSize = 60;    // bytes
   int32_t UDPpayloadSize = 40;    // bytes
   int32_t mcs = 0;                // MCS value
@@ -124,6 +126,8 @@ int main(int argc, char *argv[])
   double batteryLevel = 20;       // initial battery energy
   int technology = 0;             // technology to be used 802.11ax = 0, 5G = 1;
   double distance = 10;           // mobility model quadrant size
+  int frequency = 5;              // frequency selection
+  int channelWidth = 20;          // channel number
 
   CommandLine cmd(__FILE__);
   cmd.AddValue("verbose", "Tell echo applications to log if true", verbose);
@@ -135,15 +139,19 @@ int main(int argc, char *argv[])
   cmd.AddValue("powAp", "Power of AP (dBm)", powAp);
   cmd.AddValue("ccaEdTrSta", "CCA-ED Threshold of STA (dBm)", ccaEdTrSta);
   cmd.AddValue("ccaEdTrAp", "CCA-ED Threshold of AP (dBm)", ccaEdTrAp);
+  cmd.AddValue("rxSensSta", "RX Sensitivity of STA (dBm)", rxSensSta);
+  cmd.AddValue("rxSensAp", "RX Sensitivity of AP (dBm)", rxSensAp);
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
   cmd.AddValue("udp", "UDP if set to 1, TCP otherwise", udp);
   cmd.AddValue("batteryLevel", "Initial energy level (J)", batteryLevel);
   cmd.AddValue("numAp", "Number of Wifi Access Points", numAp);
   cmd.AddValue("numSta", "Number of Wifi Stations per AP", numSta);
-  cmd.AddValue("technology", "Select technology to be used. 0 = 802.11ax, 1 = 5G, 2 = 802.11n 2.4GHz, 3 = 802.11n 5GHz", technology);
-  cmd.AddValue("distance", "distance between networks", distance);
+  cmd.AddValue("technology", "Select technology to be used. 0 = 802.11ax, 1 = 802.11n, 3 = 5G", technology);
+  cmd.AddValue("distance", "Distance between networks", distance);
   cmd.AddValue("TCPpayloadSize", "TCP packet size", TCPpayloadSize);
   cmd.AddValue("UDPpayloadSize", "UDP packet size", UDPpayloadSize);
+  cmd.AddValue("frequency", "Wifi device frequency. 2 - 2.4GHz, 5 - 5GHz, 6 - 6GHz", frequency);
+  cmd.AddValue("channelWidth", "Defines wifi channel number", channelWidth);
   cmd.Parse(argc, argv);
 
   numNodes = numSta * numAp + numAp + 1;  //updating numNodes
@@ -168,7 +176,7 @@ int main(int argc, char *argv[])
   csma.SetChannelAttribute("Delay", TimeValue(NanoSeconds(6560)));
 
   NetDeviceContainer csmaDevices;
-  csmaDevices = csma.Install(csmaNodes);
+
 
   //spectrum definition
   /***************************************************************************/
@@ -181,16 +189,31 @@ int main(int argc, char *argv[])
 
   phy.SetChannel(spectrumChannel);
   phy.SetErrorRateModel("ns3::YansErrorRateModel");
-  phy.Set("Frequency", UintegerValue(5180)); // channel 36 at 20 MHz
   phy.SetPreambleDetectionModel("ns3::ThresholdPreambleDetectionModel");
   /***************************************************************************/
 
   WifiHelper wifi;
   //wifi.SetRemoteStationManager ("ns3::AarfWifiManager");
+  
 
+  //IEEE 802.11ax
   if (technology == 0)
   {
-    wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ); //define standard como 802.11ax 5GHz
+    switch (frequency){
+      case 2:
+        wifi.SetStandard (WIFI_STANDARD_80211ax_2_4GHZ);
+        break;
+      case 5:
+        wifi.SetStandard (WIFI_STANDARD_80211ax_5GHZ);
+        break;
+      case 6:
+        wifi.SetStandard (WIFI_STANDARD_80211ax_6GHZ);
+        break;
+      default:
+        std::cout<<"Wrong frequency."<<std::endl;
+        return 0;
+    }
+
     std::ostringstream oss;
     oss << "HeMcs" << mcs;
     wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
@@ -203,19 +226,35 @@ int main(int argc, char *argv[])
                               "ObssPdLevel", DoubleValue(obssPdThreshold));
     }
   }
-  else if (technology == 2)
+
+  //IEEE 802.11n
+  else if (technology == 1)
   {
-    wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
-  }
-  else if (technology == 3)
-  {
-    wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
+    switch (frequency){
+      case 2:
+        wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
+        break;
+      case 5:
+        wifi.SetStandard (WIFI_STANDARD_80211n_5GHZ);
+        break;
+      default:
+        std::cout<<"Wrong frequency."<<std::endl;
+        return 0;
+    }
+
+    std::ostringstream oss;
+    oss << "HtMcs" << mcs;
+    wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
+                                 "DataMode", StringValue(oss.str()),
+                                 "ControlMode", StringValue(oss.str()));
   }
   else
   {
     // if no supported technology is selected
     return 0;
   }
+
+  phy.Set("ChannelWidth", UintegerValue(channelWidth));
 
   WifiMacHelper mac;
   Ssid ssid;
@@ -233,7 +272,7 @@ int main(int argc, char *argv[])
     phy.Set("TxPowerStart", DoubleValue(powSta));
     phy.Set("TxPowerEnd", DoubleValue(powSta));
     phy.Set("CcaEdThreshold", DoubleValue(ccaEdTrSta));
-    phy.Set("RxSensitivity", DoubleValue(-92.0));
+    phy.Set("RxSensitivity", DoubleValue(rxSensSta));
 
     mac.SetType("ns3::StaWifiMac", "Ssid", SsidValue(ssid), "ActiveProbing", BooleanValue(false));
 
@@ -246,7 +285,7 @@ int main(int argc, char *argv[])
     phy.Set("TxPowerStart", DoubleValue(powAp));
     phy.Set("TxPowerEnd", DoubleValue(powAp));
     phy.Set("CcaEdThreshold", DoubleValue(ccaEdTrAp));
-    phy.Set("RxSensitivity", DoubleValue(-92.0));
+    phy.Set("RxSensitivity", DoubleValue(rxSensAp));
 
     mac.SetType("ns3::ApWifiMac", "Ssid", SsidValue(ssid));
 
@@ -259,6 +298,8 @@ int main(int argc, char *argv[])
       ap2Device[i]->GetHeConfiguration()->SetAttribute("BssColor", UintegerValue(i + 1));
     }
   }
+
+  csmaDevices = csma.Install(csmaNodes);
 
   /** Configure mobility model **/
   MobilityHelper mobility;
@@ -283,7 +324,7 @@ int main(int argc, char *argv[])
                                 "Bounds", RectangleValue(Rectangle((x - 1) * distance - 1, (x + 1) * distance + 1, (y - 1) * distance - 1, (y + 1) * distance + 1)));
       for (int32_t j = 0; j < numSta; j++)
       {
-        std::cout << "x:" << x << " y:" << y << " distance:" << distance << "\n";
+        //std::cout << "x:" << x << " y:" << y << " distance:" << distance << "\n";
         mobility.Install(wifiStaNodes.Get(counter * numSta + j));
       }
     }
@@ -298,7 +339,7 @@ int main(int argc, char *argv[])
                                 "LayoutType", StringValue("RowFirst"));
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   mobility.Install(wifiApNodes);
-  std::cout << "wifi crash?\n";
+  std::cout << "Mobility model configured\n";
   // Routing
   InternetStackHelper stack;
 
@@ -313,7 +354,7 @@ int main(int argc, char *argv[])
   Ipv4InterfaceContainer csmaInterfaces;
   csmaInterfaces = address.Assign(csmaDevices);
 
-  address.SetBase("172.1.1.0", "255.255.255.0");
+  address.SetBase("172.1.0.0", "255.255.0.0");
   for (int32_t i = 0; i < numAp; i++)
   {
     address.Assign(ApDevices.Get(i));
@@ -327,7 +368,7 @@ int main(int argc, char *argv[])
   for (int32_t i = 0; i < numAp; i++)
   {
     Ptr<Ipv4StaticRouting> staticRouting;
-    std::string wifiApIP = "172.1." + std::to_string(i + 1) + ".1";
+    std::string wifiApIP = "172." + std::to_string(i + 1) + ".0.1";
     std::string csmaApIP = "10.1.1." + std::to_string(i + 1);
     for (int32_t j = 0; j < numSta; j++)
     {
@@ -337,8 +378,12 @@ int main(int argc, char *argv[])
 
     staticRouting = Ipv4RoutingHelper::GetRouting<Ipv4StaticRouting>(csmaNodes.Get(numAp)->GetObject<Ipv4>()->GetRoutingProtocol());
     //staticRouting->SetDefaultRoute ("10.1.1.2", 1);
-    staticRouting->AddNetworkRouteTo(wifiApIP.c_str(), "255.255.255.0", csmaApIP.c_str(), 1);
+    staticRouting->AddNetworkRouteTo(wifiApIP.c_str(), "255.255.0.0", csmaApIP.c_str(), 1);
   }
+
+
+  Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferTx", MakeCallback(&MonitorSniffTx));
+  Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
 
   //server
   if (udp){
@@ -423,8 +468,7 @@ int main(int argc, char *argv[])
     }
   }
 
-  Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferTx", MakeCallback(&MonitorSniffTx));
-  Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
+
 
   //flow monitor logging
   /**************************************************************************/
@@ -461,9 +505,9 @@ int main(int argc, char *argv[])
     else
     {
       //TCP
-      //   uint64_t totalBytesRx = DynamicCast<PacketSink>(apDevice[i].Get(0))->GetTotalRx();
-      //   totalPacketsThrough[i] = totalBytesRx / TCPpayloadSize;
-      //   throughput[i] = totalBytesRx * 8 / (duration * 1000000.0); //Mbit/s
+        // uint64_t totalBytesRx = DynamicCast<PacketSink>(apDevice[i].Get(0))->GetTotalRx();
+        // totalPacketsThrough[i] = totalBytesRx / TCPpayloadSize;
+        // throughput[i] = totalBytesRx * 8 / (duration * 1000000.0); //Mbit/s
 
       throughput[i] = totalPacketsThrough[i] * TCPpayloadSize * 8 / (duration * 1000000.0); //Mbit/s
     }
@@ -471,10 +515,16 @@ int main(int argc, char *argv[])
     for (int32_t j = i * numSta; j < (1 + i) * numSta; j++)
     {
       totalPacketsSent[i] += packetsSent[j];
+      std::cout<<totalPacketsSent[i]<<std::endl;
     }
-
-    std::cout << std::setw(10) << i + 1 << std::setw(15) << throughput[i] << std::setw(15) << signalDbmAvg[numSta * numAp + i] << std::setw(15) << noiseDbmAvg[numSta * numAp + i] << std::setw(15) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(15) << (1 - (float)totalPacketsThrough[i] / totalPacketsSent[i]) << std::setw(15) << totalPacketsThrough[i] << std::setw(15) << totalPacketsSent[i] << std::endl;
+    std::cout << std::setw(10) << i + 1 << std::setw(15) << throughput[i] << std::setw(15) << signalDbmAvg[numSta * numAp + i] << std::setw(15) << noiseDbmAvg[numSta * numAp + i] << std::setw(15) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(15) << (1 - (float)totalPacketsThrough[i] / (float)totalPacketsSent[i]) << std::setw(15) << totalPacketsThrough[i] << std::setw(15) << totalPacketsSent[i] << std::endl;
   }
+
+  for (int32_t j = 0; j < numNodes; j++)
+    {
+      
+      std::cout<<packetsSent[j]<<"\t"<<packetsReceived[j]<<std::endl;
+    }
 
   Simulator::Destroy();
   return 0;

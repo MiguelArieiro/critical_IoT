@@ -10,16 +10,16 @@ cd /ns-allinone-3.30/ns-3.30
 ```
 
 # running file
-place wifi-spatial-reuse-var.cc file on the /ns-allinone-3.30/ns-3.30/scratch
+place critical_iot.cc file on the /ns-allinone-3.30/ns-3.30/scratch
 ```
-./waf --run wifi-spatial-reuse-var
+./waf --run critical_iot
 ```
 # running file with arguments
 ```
-./waf --run "wifi-spatial-reuse-var --PrintHelp"
+./waf --run "critical_iot --PrintHelp"
 ```
 
 e.r. number of AP=3 and numebr of stations/ap = 5
 ```
-./waf --run "wifi-spatial-reuse-var --numAp=3 --numSta=5"
+./waf --run "critical_iot --numAp=3 --numSta=5"
 ```
