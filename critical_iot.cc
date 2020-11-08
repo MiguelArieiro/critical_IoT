@@ -62,6 +62,9 @@ std::vector<uint64_t> totalPacketsThrough(numAp);
 std::vector<double> throughput(numAp);
 std::vector<uint64_t> packetsReceived(numNodes);
 std::vector<uint64_t> packetsSent(numNodes);
+
+std::vector<FILE*> signalDbmFile (numNodes);
+std::vector<FILE*> noiseDbmFile (numNodes);
 /***************************************************************************/
 
 // Trace functions
@@ -81,6 +84,9 @@ void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t chan
   packetsReceived[nodeId]++;
   signalDbmAvg[nodeId] += ((signalNoise.signal - signalDbmAvg[nodeId]) / packetsReceived[nodeId]);
   noiseDbmAvg[nodeId] += ((signalNoise.noise - noiseDbmAvg[nodeId]) / packetsReceived[nodeId]);
+
+  fprintf(signalDbmFile[nodeId],"%lf\n", signalNoise.signal);
+  fprintf(noiseDbmFile[nodeId],"%lf\n", signalNoise.noise);
 }
 
 // Trace function for sent packets
@@ -155,6 +161,14 @@ int main(int argc, char *argv[])
   cmd.Parse(argc, argv);
 
   numNodes = numSta * numAp + numAp + 1;  //updating numNodes
+
+  std::string filename;
+  for (int i=0; i< numNodes; i++){
+    filename = "signalDBM_Node_" + std::to_string(i);
+    signalDbmFile[i]=fopen(filename.c_str(), "w+");
+    filename = "signalDBM_Node_" + std::to_string(i);
+    noiseDbmFile[i]=fopen(filename.c_str(), "w+");
+  }
 
   if (verbose)
   {
@@ -512,20 +526,26 @@ int main(int argc, char *argv[])
       throughput[i] = totalPacketsThrough[i] * TCPpayloadSize * 8 / (duration * 1000000.0); //Mbit/s
     }
 
-    for (int32_t j = i * numSta; j < (1 + i) * numSta; j++)
-    {
-      totalPacketsSent[i] += packetsSent[j];
-      std::cout<<totalPacketsSent[i]<<std::endl;
-    }
+    // for (int32_t j = i * numSta; j < (1 + i) * numSta; j++)
+    // {
+    //   totalPacketsSent[i] += packetsSent[j];
+    //   std::cout<<totalPacketsSent[i]<<std::endl;
+    // }
     std::cout << std::setw(10) << i + 1 << std::setw(15) << throughput[i] << std::setw(15) << signalDbmAvg[numSta * numAp + i] << std::setw(15) << noiseDbmAvg[numSta * numAp + i] << std::setw(15) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(15) << (1 - (float)totalPacketsThrough[i] / (float)totalPacketsSent[i]) << std::setw(15) << totalPacketsThrough[i] << std::setw(15) << totalPacketsSent[i] << std::endl;
   }
 
-  for (int32_t j = 0; j < numNodes; j++)
-    {
+  // for (int32_t j = 0; j < numNodes; j++)
+  //   {
       
-      std::cout<<packetsSent[j]<<"\t"<<packetsReceived[j]<<std::endl;
-    }
+  //     std::cout<<packetsSent[j]<<"\t"<<packetsReceived[j]<<std::endl;
+  //   }
 
   Simulator::Destroy();
+  for (int i=0; i< numNodes; i++){
+    filename = "signalDBM_Node_" + std::to_string(i);
+    fclose(signalDbmFile[i]);
+    filename = "signalDBM_Node_" + std::to_string(i);
+    fclose(noiseDbmFile[i]);
+  }
   return 0;
 }
