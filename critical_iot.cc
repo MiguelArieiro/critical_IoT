@@ -526,11 +526,11 @@ int main(int argc, char *argv[])
       throughput[i] = totalPacketsThrough[i] * TCPpayloadSize * 8 / (duration * 1000000.0); //Mbit/s
     }
 
-    // for (int32_t j = i * numSta; j < (1 + i) * numSta; j++)
-    // {
-    //   totalPacketsSent[i] += packetsSent[j];
-    //   std::cout<<totalPacketsSent[i]<<std::endl;
-    // }
+    for (int32_t j = i * numSta; j < (1 + i) * numSta; j++)
+    {
+      totalPacketsSent[i] += packetsSent[j];
+      //std::cout<<totalPacketsSent[i]<<std::endl;
+    }
     std::cout << std::setw(10) << i + 1 << std::setw(15) << throughput[i] << std::setw(15) << signalDbmAvg[numSta * numAp + i] << std::setw(15) << noiseDbmAvg[numSta * numAp + i] << std::setw(15) << (signalDbmAvg[numSta * numAp + i] - noiseDbmAvg[numSta * numAp + i]) << std::setw(15) << (1 - (float)totalPacketsThrough[i] / (float)totalPacketsSent[i]) << std::setw(15) << totalPacketsThrough[i] << std::setw(15) << totalPacketsSent[i] << std::endl;
   }
 

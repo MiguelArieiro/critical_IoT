@@ -7,9 +7,11 @@ from RunStats import *
 class TSP:
     indiv_matrix: List[List[int]]
 
-    def __init__(self, numIndiv, max_weight, pop_size, mutation_prob, crossover_prob, tournament_size, number_generations, elite_per, random_per):
-        self.numIndiv = numIndiv
+    def __init__(self, num_indiv, max_weight, num_weight max_bias, pop_size, mutation_prob, crossover_prob, tournament_size, number_generations, elite_per, random_per):
+        self.num_indiv = num_indiv
         self.max_weight = max_weight
+        self.num_weight = num_weight
+        self.max_bias = max_bias
         self.pop_size = pop_size
         self.mutation_prob = mutation_prob
         self.crossover_prob = crossover_prob
@@ -17,13 +19,13 @@ class TSP:
         self.number_generations = number_generations
         self.elite_per = elite_per
         self.random_per = random_per
-        self.gen_problem(numIndiv, max_weight)
+        self.gen_problem(num_indiv, max_weight)
         self.initial_population = [Individual(self.indiv_matrix) for _ in range(pop_size)]
 
-    def gen_problem(self, numIndiv, max_weight):
-        self.indiv_matrix = [[random.randdouble(0, max_weight) if i != j else 0 for i in range(numIndiv)] for j in range(numIndiv)]
-        for i in range(numIndiv):
-            for j in range(numIndiv):
+    def gen_problem(self, num_indiv, max_weight):
+        self.indiv_matrix = [[random.randdouble(-max_weight, max_weight) for i in range (num_weight)] for j in range(num_indiv)]
+        for i in range(num_indiv):
+            for j in range(num_indiv):
                 self.indiv_matrix[j][i] = self.indiv_matrix[i][j]
 
     def __str__(self):

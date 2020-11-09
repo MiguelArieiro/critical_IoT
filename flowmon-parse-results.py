@@ -8,7 +8,7 @@ except ImportError:
 
 def parse_time_ns(tm):
     if tm.endswith('ns'):
-        return long(tm[:-4])
+        return float(tm[:-2])
     raise ValueError(tm)
 
 
@@ -110,7 +110,7 @@ class Flow(object):
         else:
             self.hopCount = -1000
         if rxPackets:
-            self.delayMean = float(flow_el.get('delaySum')[:-4]) / rxPackets * 1e-9
+            self.delayMean = float(flow_el.get('delaySum')[:-2]) / rxPackets * 1e-9
             self.packetSizeMean = float(flow_el.get('rxBytes')) / rxPackets
         else:
             self.delayMean = None
