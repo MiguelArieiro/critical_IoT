@@ -188,9 +188,9 @@ class Simulation(object):
 
 
 def main(argv):
+    output_file = open('flow_output.txt', 'w')
     file_obj = open(argv[1])
     print "Reading XML file ",
- 
     sys.stdout.flush()        
     level = 0
     sim_list = []
@@ -207,29 +207,55 @@ def main(argv):
                 sys.stdout.flush()
     print " done."
 
-
+    output_text="FlowID,SourceAddress,TXBitrate,RXBitrate,MeanDelay,PacketLossRatio"
     for sim in sim_list:
         for flow in sim.flows:
             t = flow.fiveTuple
             proto = {6: 'TCP', 17: 'UDP'} [t.protocol]
-            print "FlowID: %i (%s %s/%s --> %s/%i)" % \
+            output_text+="%i,%s %s/%s,%s/%i," % \
                 (flow.flowId, proto, t.sourceAddress, t.sourcePort, t.destinationAddress, t.destinationPort)
             if flow.txBitrate is None:
-                print "\tTX bitrate: None"
+                output_text+="None,"
             else:
-                print "\tTX bitrate: %.2f kbit/s" % (flow.txBitrate*1e-3,)
+                output_text+="%.2f kbit/s," % (flow.txBitrate*1e-3,)
             if flow.rxBitrate is None:
-                print "\tRX bitrate: None"
+                output_text+="None,"
             else:
-                print "\tRX bitrate: %.2f kbit/s" % (flow.rxBitrate*1e-3,)
+                output_text+="%.2f kbit/s," % (flow.rxBitrate*1e-3,)
             if flow.delayMean is None:
-                print "\tMean Delay: None"
+                output_text+="None,"
             else:
-                print "\tMean Delay: %.2f ms" % (flow.delayMean*1e3,)
+                output_text+="%.2f ms," % (flow.delayMean*1e3,)
             if flow.packetLossRatio is None:
-                print "\tPacket Loss Ratio: None"
+                output_text+="None\n"
             else:
-                print "\tPacket Loss Ratio: %.2f %%" % (flow.packetLossRatio*100)
+                output_text+="%.2f %%\n" % (flow.packetLossRatio*100)
+    
+    output_file.write(output_text)
+    output_file.close()
+
+    # for sim in sim_list:
+    #     for flow in sim.flows:
+    #         t = flow.fiveTuple
+    #         proto = {6: 'TCP', 17: 'UDP'} [t.protocol]
+    #         print "FlowID: %i (%s %s/%s --> %s/%i)" % \
+    #             (flow.flowId, proto, t.sourceAddress, t.sourcePort, t.destinationAddress, t.destinationPort)
+    #         if flow.txBitrate is None:
+    #             print "\tTX bitrate: None"
+    #         else:
+    #             print "\tTX bitrate: %.2f kbit/s" % (flow.txBitrate*1e-3,)
+    #         if flow.rxBitrate is None:
+    #             print "\tRX bitrate: None"
+    #         else:
+    #             print "\tRX bitrate: %.2f kbit/s" % (flow.rxBitrate*1e-3,)
+    #         if flow.delayMean is None:
+    #             print "\tMean Delay: None"
+    #         else:
+    #             print "\tMean Delay: %.2f ms" % (flow.delayMean*1e3,)
+    #         if flow.packetLossRatio is None:
+    #             print "\tPacket Loss Ratio: None"
+    #         else:
+    #             print "\tPacket Loss Ratio: %.2f %%" % (flow.packetLossRatio*100)
 
 
 if __name__ == '__main__':

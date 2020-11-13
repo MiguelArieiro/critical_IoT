@@ -7,7 +7,7 @@ from RunStats import *
 class TSP:
     indiv_matrix: List[List[int]]
 
-    def __init__(self, num_indiv, max_weight, num_weight max_bias, pop_size, mutation_prob, crossover_prob, tournament_size, number_generations, elite_per, random_per):
+    def __init__(self, num_indiv, max_weight, num_weight, max_bias, pop_size, mutation_prob, crossover_prob, tournament_size, number_generations, elite_per, random_per):
         self.num_indiv = num_indiv
         self.max_weight = max_weight
         self.num_weight = num_weight

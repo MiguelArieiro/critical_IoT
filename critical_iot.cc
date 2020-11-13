@@ -63,8 +63,8 @@ std::vector<double> throughput(numAp);
 std::vector<uint64_t> packetsReceived(numNodes);
 std::vector<uint64_t> packetsSent(numNodes);
 
-std::vector<FILE*> signalDbmFile (numNodes);
-std::vector<FILE*> noiseDbmFile (numNodes);
+std::vector<FILE *> signalDbmFile(numNodes);
+std::vector<FILE *> noiseDbmFile(numNodes);
 /***************************************************************************/
 
 // Trace functions
@@ -85,8 +85,8 @@ void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t chan
   signalDbmAvg[nodeId] += ((signalNoise.signal - signalDbmAvg[nodeId]) / packetsReceived[nodeId]);
   noiseDbmAvg[nodeId] += ((signalNoise.noise - noiseDbmAvg[nodeId]) / packetsReceived[nodeId]);
 
-  fprintf(signalDbmFile[nodeId],"%lf\n", signalNoise.signal);
-  fprintf(noiseDbmFile[nodeId],"%lf\n", signalNoise.noise);
+  fprintf(signalDbmFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), signalNoise.signal);
+  fprintf(noiseDbmFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), signalNoise.noise);
 }
 
 // Trace function for sent packets
@@ -97,17 +97,20 @@ void MonitorSniffTx(std::string context, const Ptr<const Packet> packet, uint16_
 }
 
 // Trace function for remaining energy at node.
-void RemainingEnergy(double oldValue, double remainingEnergy)
+void RemainingEnergy(std::string context, double oldValue, double remainingEnergy)
 {
+
+  int32_t nodeId = ContextToNodeId(context);
   NS_LOG_UNCOND(Simulator::Now().GetSeconds()
-                << "s Current remaining energy = " << remainingEnergy << "J");
+                << "s " << nodeId << " Current remaining energy = " << remainingEnergy << "J");
 }
 
 // Trace function for total energy consumption at node.
-void TotalEnergy(double oldValue, double totalEnergy)
+void TotalEnergy(std::string context, double oldValue, double totalEnergy)
 {
+  int32_t nodeId = ContextToNodeId(context);
   NS_LOG_UNCOND(Simulator::Now().GetSeconds()
-                << "s Total energy consumed by radio = " << totalEnergy << "J");
+                << "s " << nodeId << " Total energy consumed by radio = " << totalEnergy << "J");
 }
 /***************************************************************************/
 
@@ -124,7 +127,7 @@ int main(int argc, char *argv[])
   double rxSensAp = -92;          // dBm
   int32_t TCPpayloadSize = 60;    // bytes
   int32_t UDPpayloadSize = 40;    // bytes
-  int32_t mcs = 0;                // MCS value
+  int32_t mcs = 7;                // MCS value
   int64_t dataRate = 1000000;     // bits/s
   double obssPdThreshold = -82.0; // dBm
   bool enableObssPd = true;       // spatial reuse
@@ -134,6 +137,14 @@ int main(int argc, char *argv[])
   double distance = 10;           // mobility model quadrant size
   int frequency = 5;              // frequency selection
   int channelWidth = 20;          // channel number
+  int numRxSpatialStreams = 2;    // number of Rx Spatial Streams
+  int numTxSpatialStreams = 2;    // number of Tx Spatial Streams
+  int numAntennas = 2;            // number of Antenas
+
+  // double TxCurrentA = 0.144;    // Transmission current (A)
+  // double RxCurrentA = 0.088;    // Reception current (A)
+  // double SleepCurrentA = 0.017; // Sleep current (A)
+  // double IdleCurrentA = 0.020;  // Iddle current (A)
 
   CommandLine cmd(__FILE__);
   cmd.AddValue("verbose", "Tell echo applications to log if true", verbose);
@@ -158,16 +169,32 @@ int main(int argc, char *argv[])
   cmd.AddValue("UDPpayloadSize", "UDP packet size", UDPpayloadSize);
   cmd.AddValue("frequency", "Wifi device frequency. 2 - 2.4GHz, 5 - 5GHz, 6 - 6GHz", frequency);
   cmd.AddValue("channelWidth", "Defines wifi channel number", channelWidth);
+  cmd.AddValue("numTxSpatialStreams", "Number of Tx Spatial Streams", numTxSpatialStreams);
+  cmd.AddValue("numRxSpatialStreams", "Number of Rx Spatial Streams", numRxSpatialStreams);
+  cmd.AddValue("numAntennas", "Number of Rx Spatial Streams", numAntennas);
+  // cmd.AddValue("TxCurrentA", "Transmission current (A)", TxCurrentA);
+  // cmd.AddValue("RxCurrentA", "Reception current (A)", RxCurrentA);
+  // cmd.AddValue("SleepCurrentA", "Sleep current (A)", SleepCurrentA);
+  // cmd.AddValue("IdleCurrentA", "Iddle current (A)", IdleCurrentA);
   cmd.Parse(argc, argv);
 
-  numNodes = numSta * numAp + numAp + 1;  //updating numNodes
+  numNodes = numSta * numAp + numAp + 1; //updating numNodes
 
+  // opening files
   std::string filename;
-  for (int i=0; i< numNodes; i++){
-    filename = "signalDBM_Node_" + std::to_string(i);
-    signalDbmFile[i]=fopen(filename.c_str(), "w+");
-    filename = "signalDBM_Node_" + std::to_string(i);
-    noiseDbmFile[i]=fopen(filename.c_str(), "w+");
+  for (int i = 0; i < numSta * numAp; i++)
+  {
+    filename = "STA_signalDBM_Node_" + std::to_string(i) + ".txt";
+    signalDbmFile[i] = fopen(filename.c_str(), "w+");
+    filename = "STA_signalDBM_Node_" + std::to_string(i) + ".txt";
+    noiseDbmFile[i] = fopen(filename.c_str(), "w+");
+  }
+  for (int i = numSta * numAp; i < numNodes - 1; i++)
+  {
+    filename = "AP_signalDBM_Node_" + std::to_string(i) + ".txt";
+    signalDbmFile[i] = fopen(filename.c_str(), "w+");
+    filename = "AP_signalDBM_Node_" + std::to_string(i) + ".txt";
+    noiseDbmFile[i] = fopen(filename.c_str(), "w+");
   }
 
   if (verbose)
@@ -186,11 +213,10 @@ int main(int argc, char *argv[])
   csmaNodes.Create(1);
 
   CsmaHelper csma;
-  csma.SetChannelAttribute("DataRate", StringValue("100Mbps"));
+  csma.SetChannelAttribute("DataRate", StringValue("10000Mbps"));
   csma.SetChannelAttribute("Delay", TimeValue(NanoSeconds(6560)));
 
   NetDeviceContainer csmaDevices;
-
 
   //spectrum definition
   /***************************************************************************/
@@ -206,26 +232,30 @@ int main(int argc, char *argv[])
   phy.SetPreambleDetectionModel("ns3::ThresholdPreambleDetectionModel");
   /***************************************************************************/
 
+  phy.Set("Antennas", UintegerValue(numAntennas));
+  phy.Set("MaxSupportedTxSpatialStreams", UintegerValue(numTxSpatialStreams));
+  phy.Set("MaxSupportedRxSpatialStreams", UintegerValue(numRxSpatialStreams));
+
   WifiHelper wifi;
   //wifi.SetRemoteStationManager ("ns3::AarfWifiManager");
-  
 
   //IEEE 802.11ax
   if (technology == 0)
   {
-    switch (frequency){
-      case 2:
-        wifi.SetStandard (WIFI_STANDARD_80211ax_2_4GHZ);
-        break;
-      case 5:
-        wifi.SetStandard (WIFI_STANDARD_80211ax_5GHZ);
-        break;
-      case 6:
-        wifi.SetStandard (WIFI_STANDARD_80211ax_6GHZ);
-        break;
-      default:
-        std::cout<<"Wrong frequency."<<std::endl;
-        return 0;
+    switch (frequency)
+    {
+    case 2:
+      wifi.SetStandard(WIFI_STANDARD_80211ax_2_4GHZ);
+      break;
+    case 5:
+      wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ);
+      break;
+    case 6:
+      wifi.SetStandard(WIFI_STANDARD_80211ax_6GHZ);
+      break;
+    default:
+      std::cout << "Wrong frequency." << std::endl;
+      return 0;
     }
 
     std::ostringstream oss;
@@ -244,16 +274,17 @@ int main(int argc, char *argv[])
   //IEEE 802.11n
   else if (technology == 1)
   {
-    switch (frequency){
-      case 2:
-        wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
-        break;
-      case 5:
-        wifi.SetStandard (WIFI_STANDARD_80211n_5GHZ);
-        break;
-      default:
-        std::cout<<"Wrong frequency."<<std::endl;
-        return 0;
+    switch (frequency)
+    {
+    case 2:
+      wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
+      break;
+    case 5:
+      wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
+      break;
+    default:
+      std::cout << "Wrong frequency." << std::endl;
+      return 0;
     }
 
     std::ostringstream oss;
@@ -395,12 +426,12 @@ int main(int argc, char *argv[])
     staticRouting->AddNetworkRouteTo(wifiApIP.c_str(), "255.255.0.0", csmaApIP.c_str(), 1);
   }
 
-
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferTx", MakeCallback(&MonitorSniffTx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
 
   //server
-  if (udp){
+  if (udp)
+  {
     PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 9));
     ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
     serverApps.Start(Seconds(0));
@@ -417,7 +448,8 @@ int main(int argc, char *argv[])
     clientApps.Start(Seconds(1.0));
     clientApps.Stop(Seconds(duration + 1));
   }
-  else{
+  else
+  {
     PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 5000));
     ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
     serverApps.Start(Seconds(0));
@@ -438,15 +470,21 @@ int main(int argc, char *argv[])
   /** Energy Model **/
   /***************************************************************************/
   /* energy source */
-  BasicEnergySourceHelper basicSourceHelper;
+  LiIonEnergySourceHelper basicSourceHelper;
   // configure energy source
-  basicSourceHelper.Set("BasicEnergySourceInitialEnergyJ", DoubleValue(batteryLevel));
+  basicSourceHelper.Set("LiIonEnergySourceInitialEnergyJ", DoubleValue(batteryLevel));
   // install source
   EnergySourceContainer sources = basicSourceHelper.Install(wifiStaNodes);
   /* device energy model */
   WifiRadioEnergyModelHelper radioEnergyHelper;
   // configure radio energy model
-  radioEnergyHelper.Set("TxCurrentA", DoubleValue(0.0174)); //TODO set proper value
+  radioEnergyHelper.Set("TxCurrentA", DoubleValue(0.144));
+  radioEnergyHelper.Set("RxCurrentA", DoubleValue(0.088));
+  radioEnergyHelper.Set("IdleCurrentA", DoubleValue(0.017));
+  radioEnergyHelper.Set("SleepCurrentA", DoubleValue(0.00000426));
+  radioEnergyHelper.Set("CcaBusyCurrentA", DoubleValue(0.0017));
+  radioEnergyHelper.Set("SwitchingCurrentA", DoubleValue(0.00000426));
+
   // install device model
   DeviceEnergyModelContainer deviceModels = DeviceEnergyModelContainer();
 
@@ -465,11 +503,11 @@ int main(int argc, char *argv[])
   //energy source
   for (int32_t i = 0; i < numAp * numSta; i++)
   {
-    Ptr<BasicEnergySource> basicSourcePtr = DynamicCast<BasicEnergySource>(sources.Get(i));
+    Ptr<LiIonEnergySource> basicSourcePtr = DynamicCast<LiIonEnergySource>(sources.Get(i));
 
     if (tracing)
     {
-      basicSourcePtr->TraceConnectWithoutContext("RemainingEnergy", MakeCallback(&RemainingEnergy));
+      //basicSourcePtr->TraceConnectWithoutContext("RemainingEnergy", MakeCallback(&RemainingEnergy));
     }
 
     // device energy model
@@ -478,12 +516,12 @@ int main(int argc, char *argv[])
 
     if (tracing)
     {
-      basicRadioModelPtr->TraceConnectWithoutContext("TotalEnergyConsumption", MakeCallback(&TotalEnergy));
+      //basicRadioModelPtr->TraceConnectWithoutContext("TotalEnergyConsumption", MakeCallback(&TotalEnergy));
     }
   }
 
-
-
+  //Config::Connect("/NodeList/*/DeviceList/*/Phy/WifiRadioEnergyModel", MakeCallback(&TotalEnergy));
+  //Config::Connect("/NodeList/*/DeviceList/*/Phy/LiIonEnergySource", MakeCallback(&RemainingEnergy));
   //flow monitor logging
   /**************************************************************************/
   Ptr<FlowMonitor> flowMonitor;
@@ -519,9 +557,9 @@ int main(int argc, char *argv[])
     else
     {
       //TCP
-        // uint64_t totalBytesRx = DynamicCast<PacketSink>(apDevice[i].Get(0))->GetTotalRx();
-        // totalPacketsThrough[i] = totalBytesRx / TCPpayloadSize;
-        // throughput[i] = totalBytesRx * 8 / (duration * 1000000.0); //Mbit/s
+      // uint64_t totalBytesRx = DynamicCast<PacketSink>(apDevice[i].Get(0))->GetTotalRx();
+      // totalPacketsThrough[i] = totalBytesRx / TCPpayloadSize;
+      // throughput[i] = totalBytesRx * 8 / (duration * 1000000.0); //Mbit/s
 
       throughput[i] = totalPacketsThrough[i] * TCPpayloadSize * 8 / (duration * 1000000.0); //Mbit/s
     }
@@ -536,12 +574,13 @@ int main(int argc, char *argv[])
 
   // for (int32_t j = 0; j < numNodes; j++)
   //   {
-      
+
   //     std::cout<<packetsSent[j]<<"\t"<<packetsReceived[j]<<std::endl;
   //   }
 
   Simulator::Destroy();
-  for (int i=0; i< numNodes; i++){
+  for (int i = 0; i < numNodes - 1; i++)
+  {
     filename = "signalDBM_Node_" + std::to_string(i);
     fclose(signalDbmFile[i]);
     filename = "signalDBM_Node_" + std::to_string(i);
