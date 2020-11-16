@@ -49,8 +49,10 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("Critical IoT Scenario");
 
-int32_t numSta = 100;                          //number of stations per AP
-int32_t numAp = 2;                             //number of stations
+bool verbose;
+
+int32_t numSta = 200;                          //number of stations per AP
+int32_t numAp = 50;                            //number of stations
 int32_t numNodes = numSta * numAp + numAp + 1; //number of nodes
 
 // Global variables for use in callbacks.
@@ -65,6 +67,9 @@ std::vector<uint64_t> packetsSent(numNodes);
 
 std::vector<FILE *> signalDbmFile(numNodes);
 std::vector<FILE *> noiseDbmFile(numNodes);
+std::vector<FILE *> energyRemainingFile(numNodes);
+std::vector<FILE *> energyConsumedFile(numNodes);
+
 /***************************************************************************/
 
 // Trace functions
@@ -100,23 +105,30 @@ void MonitorSniffTx(std::string context, const Ptr<const Packet> packet, uint16_
 void RemainingEnergy(std::string context, double oldValue, double remainingEnergy)
 {
 
-  int32_t nodeId = ContextToNodeId(context);
-  NS_LOG_UNCOND(Simulator::Now().GetSeconds()
-                << "s " << nodeId << " Current remaining energy = " << remainingEnergy << "J");
+  int32_t nodeId = std::stoi(context);
+  if (verbose)
+  {
+    NS_LOG_UNCOND(Simulator::Now().GetSeconds()
+                  << "s " << nodeId << " Current remaining energy = " << remainingEnergy << "J");
+  }
+  fprintf(energyRemainingFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), remainingEnergy);
 }
 
 // Trace function for total energy consumption at node.
 void TotalEnergy(std::string context, double oldValue, double totalEnergy)
 {
-  int32_t nodeId = ContextToNodeId(context);
-  NS_LOG_UNCOND(Simulator::Now().GetSeconds()
-                << "s " << nodeId << " Total energy consumed by radio = " << totalEnergy << "J");
+  int32_t nodeId = std::stoi(context);
+  if (verbose)
+  {
+    NS_LOG_UNCOND(Simulator::Now().GetSeconds()
+                  << "s " << nodeId << " Total energy consumed by radio = " << totalEnergy << "J");
+  }
+  fprintf(energyConsumedFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), totalEnergy);
 }
 /***************************************************************************/
 
 int main(int argc, char *argv[])
 {
-  bool verbose = true;
   bool tracing = false;
   double duration = 10.0;         // seconds
   double powSta = 10.0;           // dBm
@@ -188,6 +200,10 @@ int main(int argc, char *argv[])
     signalDbmFile[i] = fopen(filename.c_str(), "w+");
     filename = "STA_signalDBM_Node_" + std::to_string(i) + ".txt";
     noiseDbmFile[i] = fopen(filename.c_str(), "w+");
+    filename = "STA_energyRemaining_Node_" + std::to_string(i) + ".txt";
+    energyRemainingFile[i] = fopen(filename.c_str(), "w+");
+    filename = "STA_energyConsumed_Node_" + std::to_string(i) + ".txt";
+    energyConsumedFile[i] = fopen(filename.c_str(), "w+");
   }
   for (int i = numSta * numAp; i < numNodes - 1; i++)
   {
@@ -195,6 +211,10 @@ int main(int argc, char *argv[])
     signalDbmFile[i] = fopen(filename.c_str(), "w+");
     filename = "AP_signalDBM_Node_" + std::to_string(i) + ".txt";
     noiseDbmFile[i] = fopen(filename.c_str(), "w+");
+    filename = "AP_energyRemaining_Node_" + std::to_string(i) + ".txt";
+    energyRemainingFile[i] = fopen(filename.c_str(), "w+");
+    filename = "AP_energyConsumed_Node_" + std::to_string(i) + ".txt";
+    energyConsumedFile[i] = fopen(filename.c_str(), "w+");
   }
 
   if (verbose)
@@ -507,7 +527,7 @@ int main(int argc, char *argv[])
 
     if (tracing)
     {
-      //basicSourcePtr->TraceConnectWithoutContext("RemainingEnergy", MakeCallback(&RemainingEnergy));
+      basicSourcePtr->TraceConnect("RemainingEnergy", std::to_string(i), MakeCallback(&RemainingEnergy));
     }
 
     // device energy model
@@ -516,7 +536,7 @@ int main(int argc, char *argv[])
 
     if (tracing)
     {
-      //basicRadioModelPtr->TraceConnectWithoutContext("TotalEnergyConsumption", MakeCallback(&TotalEnergy));
+      basicRadioModelPtr->TraceConnect("TotalEnergyConsumption", std::to_string(i), MakeCallback(&TotalEnergy));
     }
   }
 
@@ -581,10 +601,10 @@ int main(int argc, char *argv[])
   Simulator::Destroy();
   for (int i = 0; i < numNodes - 1; i++)
   {
-    filename = "signalDBM_Node_" + std::to_string(i);
     fclose(signalDbmFile[i]);
-    filename = "signalDBM_Node_" + std::to_string(i);
     fclose(noiseDbmFile[i]);
+    fclose(energyRemainingFile[i]);
+    fclose(energyConsumedFile[i]);
   }
   return 0;
 }

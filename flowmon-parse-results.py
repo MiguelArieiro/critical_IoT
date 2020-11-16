@@ -207,29 +207,29 @@ def main(argv):
                 sys.stdout.flush()
     print " done."
 
-    output_text="FlowID,SourceAddress,TXBitrate,RXBitrate,MeanDelay,PacketLossRatio"
+    output_text="FlowID,Protocol,SourceAddress,OutputAddress,TXBitrate(kbit/s),RXBitrate(kbit/s),MeanDelay(ms),PacketLossRatio\n"
     for sim in sim_list:
         for flow in sim.flows:
             t = flow.fiveTuple
             proto = {6: 'TCP', 17: 'UDP'} [t.protocol]
-            output_text+="%i,%s %s/%s,%s/%i," % \
+            output_text+="%i,%s,%s/%s,%s/%i," % \
                 (flow.flowId, proto, t.sourceAddress, t.sourcePort, t.destinationAddress, t.destinationPort)
             if flow.txBitrate is None:
                 output_text+="None,"
             else:
-                output_text+="%.2f kbit/s," % (flow.txBitrate*1e-3,)
+                output_text+="%.2f," % (flow.txBitrate*1e-3,)
             if flow.rxBitrate is None:
                 output_text+="None,"
             else:
-                output_text+="%.2f kbit/s," % (flow.rxBitrate*1e-3,)
+                output_text+="%.2f," % (flow.rxBitrate*1e-3,)
             if flow.delayMean is None:
                 output_text+="None,"
             else:
-                output_text+="%.2f ms," % (flow.delayMean*1e3,)
+                output_text+="%.2f," % (flow.delayMean*1e3,)
             if flow.packetLossRatio is None:
                 output_text+="None\n"
             else:
-                output_text+="%.2f %%\n" % (flow.packetLossRatio*100)
+                output_text+="%.2f\n" % (flow.packetLossRatio*100)
     
     output_file.write(output_text)
     output_file.close()
