@@ -212,7 +212,7 @@ def main(argv):
         for flow in sim.flows:
             t = flow.fiveTuple
             proto = {6: 'TCP', 17: 'UDP'} [t.protocol]
-            output_text+="%i,%s,%s/%s,%s/%i," % \
+            output_text+="%i,%s,%s:%s,%s:%i," % \
                 (flow.flowId, proto, t.sourceAddress, t.sourcePort, t.destinationAddress, t.destinationPort)
             if flow.txBitrate is None:
                 output_text+="None,"
