@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
   numNodes = numSta * numAp + numAp + 1; //updating numNodes
 
   // opening files
+  FILE* nodeIDFile = fopen ("NodeID.txt","w+");
   std::string filename;
   for (int i = 0; i < numSta * numAp; i++)
   {
@@ -477,7 +478,7 @@ int main(int argc, char *argv[])
 
         OnOffHelper pttOnOff("ns3::UdpSocketFactory", Address(InetSocketAddress(iaddr.GetLocal(), pttPortServer)));
         AtrOnTime = StringValue("ns3::ConstantRandomVariable[Constant=2]");
-        AtrOffTime = StringValue("ns3::ConstantRandomVariable[Constant=0]");
+        AtrOffTime = StringValue("ns3::ConstantRandomVariable[Constant=2]");
         pttOnOff.SetAttribute("OnTime", AtrOnTime); //2 em 2s ?
         pttOnOff.SetAttribute("OffTime", AtrOffTime );
         pttOnOff.SetAttribute("PacketSize", UintegerValue(200)); //200 bytes as per Fog evaluation
@@ -496,7 +497,7 @@ int main(int argc, char *argv[])
     //client
     OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 9)));
     AtrOnTime = StringValue("ns3::ConstantRandomVariable[Constant=2]");
-    AtrOffTime = StringValue("ns3::ConstantRandomVariable[Constant=0]");
+    AtrOffTime = StringValue("ns3::ConstantRandomVariable[Constant=2]");
     onoff.SetAttribute("OnTime", AtrOnTime);
     onoff.SetAttribute("OffTime", AtrOffTime);
     onoff.SetAttribute("PacketSize", UintegerValue(UDPpayloadSize));
@@ -513,7 +514,7 @@ int main(int argc, char *argv[])
     //client
     OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 5000)));
     AtrOnTime = StringValue("ns3::ConstantRandomVariable[Constant=2]");
-    AtrOffTime = StringValue("ns3::ConstantRandomVariable[Constant=0]");
+    AtrOffTime = StringValue("ns3::ConstantRandomVariable[Constant=2]");
     onoff.SetAttribute("OnTime", AtrOnTime);
     onoff.SetAttribute("OffTime", AtrOffTime);
     onoff.SetAttribute("PacketSize", UintegerValue(TCPpayloadSize));
@@ -635,7 +636,26 @@ int main(int argc, char *argv[])
   //     std::cout<<packetsSent[j]<<"\t"<<packetsReceived[j]<<std::endl;
   //   }
 
+
+
   Simulator::Destroy();
+
+  for (int32_t i = 0; i < numAp; i++)
+  {
+    Ptr<Ipv4StaticRouting> staticRouting;
+    std::string wifiApIP = "172." + std::to_string(i + 1) + ".0.1";
+    std::string csmaApIP = "10.1.1." + std::to_string(i + 1);
+    fprintf (nodeIDFile, "AP, %d, %s\n", i*numSta, wifiApIP.c_str());
+    fprintf (nodeIDFile, "AP, %d, %s\n", i*numSta, csmaApIP.c_str());
+    for (int32_t j = 0; j < numSta; j++){
+      std::string wifiApIP = "172." + std::to_string(i + 1) + ".0." + std::to_string(j + 2);
+      fprintf (nodeIDFile, "STA, %d, %s\n", i*numSta+j, wifiApIP.c_str());
+    }
+
+  }
+  std::string csmaApIP = "10.1.1." + std::to_string(numAp);
+  fprintf (nodeIDFile, "Server, %d, %s\n", numAp*numSta, csmaApIP.c_str());
+
   for (int i = 0; i < numNodes - 1; i++)
   {
     fclose(signalDbmFile[i]);
@@ -643,5 +663,6 @@ int main(int argc, char *argv[])
     fclose(energyRemainingFile[i]);
     fclose(energyConsumedFile[i]);
   }
+  fclose(nodeIDFile);
   return 0;
 }
