@@ -1,6 +1,6 @@
 
 desktop.ini
-.DS_Store
+.*DS_Store
 .vs*/
 subdir/
 debug.log

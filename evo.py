@@ -21,6 +21,7 @@ class TSP:
         self.random_per = random_per
         self.gen_problem(num_indiv, max_weight)
         self.initial_population = [Individual(self.indiv_matrix) for _ in range(pop_size)]
+        
 
     def gen_problem(self, num_indiv, max_weight):
         self.indiv_matrix = [[random.randdouble(-max_weight, max_weight) for i in range (num_weight)] for j in range(num_indiv)]
