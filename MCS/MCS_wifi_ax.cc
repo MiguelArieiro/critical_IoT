@@ -249,6 +249,16 @@ int main(int argc, char *argv[])
   int run = 1;
 
 
+  //default ns3 energy values 802.11n (2.4GHz)
+  double TxCurrentA = 0.38;
+  double RxCurrentA = 0.313;
+  double IdleCurrentA = 0.273;
+  double SleepCurrentA = 0.033;
+  double CcaBusyCurrentA = 0.273;
+  double SwitchingCurrentA = 0.273;
+
+  bool useRts = false;
+  bool useExtendedBlockAck = false;
 
   CommandLine cmd(__FILE__);
 
@@ -277,6 +287,9 @@ int main(int argc, char *argv[])
 
   cmd.AddValue("powerMode", "Settings for Power Mode (0- min per REF1, 1 - per NS3 defaults, 2-per Double of NS3 defaults )", powerMode);
   cmd.AddValue("guardInterval", "GuardInterval in NanoSeconds (800, 3200)", gi);
+
+  cmd.AddValue ("useRts", "Enable/disable RTS/CTS", useRts);
+  cmd.AddValue ("useExtendedBlockAck", "Enable/disable use of extended BACK", useExtendedBlockAck);
 
   ConfigStore inputConfig;
   inputConfig.ConfigureDefaults();
@@ -389,12 +402,29 @@ int main(int argc, char *argv[])
     {
     case 2:
       wifi.SetStandard(WIFI_STANDARD_80211ax_2_4GHZ);
+      
       break;
     case 5:
       wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ);
+
+      //val aproximados
+      TxCurrentA = 0.52364;
+      RxCurrentA = 0.417229;
+      IdleCurrentA = 0.374283;
+      SleepCurrentA = 0.035211;
+      CcaBusyCurrentA = 0.374283;
+      SwitchingCurrentA = 0.374283;
       break;
     case 6:
       wifi.SetStandard(WIFI_STANDARD_80211ax_6GHZ);
+
+      //val aproximados
+      TxCurrentA = 0.52364;
+      RxCurrentA = 0.417229;
+      IdleCurrentA = 0.374283;
+      SleepCurrentA = 0.035211;
+      CcaBusyCurrentA = 0.374283;
+      SwitchingCurrentA = 0.374283;
       break;
     default:
       std::cout << "Wrong frequency." << std::endl;
