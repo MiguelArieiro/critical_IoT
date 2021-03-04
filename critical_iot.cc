@@ -33,6 +33,8 @@
 #include "ns3/energy-module.h"
 #include "ns3/olsr-helper.h"
 #include "ns3/wifi-module.h"
+#include "ns3/flow-monitor-helper.h"
+#include "ns3/ipv4-flow-classifier.h"
 
 // Default Network Topology
 //
@@ -47,12 +49,16 @@
 
 using namespace ns3;
 
+#define MAX_NODES 500
+
 NS_LOG_COMPONENT_DEFINE("Critical IoT Scenario");
 
 bool verbose;
 
-int32_t numSta = 200;                          //number of stations per AP
-int32_t numAp = 50;                            //number of stations
+
+
+int32_t numSta = 2;                          //number of stations per AP
+int32_t numAp = 2;                            //number of stations
 int32_t numNodes = numSta * numAp + numAp + 1; //number of nodes
 
 // Global variables for use in callbacks.
@@ -83,7 +89,7 @@ int32_t ContextToNodeId(std::string context)
 }
 
 // Trace function for received packets and SNR
-void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise)
+void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise, uint16_t staId)
 {
   int32_t nodeId = ContextToNodeId(context);
   packetsReceived[nodeId]++;
@@ -95,7 +101,7 @@ void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t chan
 }
 
 // Trace function for sent packets
-void MonitorSniffTx(std::string context, const Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu)
+void MonitorSniffTx(std::string context, const Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, uint16_t staId)
 {
   int32_t nodeId = ContextToNodeId(context);
   packetsSent[nodeId]++;
@@ -140,7 +146,7 @@ int main(int argc, char *argv[])
   int32_t TCPpayloadSize = 60;    // bytes
   int32_t UDPpayloadSize = 40;    // bytes
   int32_t mcs = 7;                // MCS value
-  int64_t dataRate = 1000000;     // bits/s
+  int64_t dataRate = 10000;     // bits/s
   double obssPdThreshold = -82.0; // dBm
   bool enableObssPd = true;       // spatial reuse
   bool udp = false;               // udp or tcp
@@ -152,6 +158,9 @@ int main(int argc, char *argv[])
   int numRxSpatialStreams = 2;    // number of Rx Spatial Streams
   int numTxSpatialStreams = 2;    // number of Tx Spatial Streams
   int numAntennas = 2;            // number of Antenas
+  
+  uint32_t timeStartServerApps = 1000;
+  uint32_t timeStartClientApps = 2000;
 
   // double TxCurrentA = 0.144;    // Transmission current (A)
   // double RxCurrentA = 0.088;    // Reception current (A)
@@ -240,7 +249,7 @@ int main(int argc, char *argv[])
 
   //spectrum definition
   /***************************************************************************/
-  SpectrumWifiPhyHelper phy = SpectrumWifiPhyHelper::Default();
+  SpectrumWifiPhyHelper phy;
   Ptr<MultiModelSpectrumChannel> spectrumChannel = CreateObject<MultiModelSpectrumChannel>();
   Ptr<FriisPropagationLossModel> lossModel = CreateObject<FriisPropagationLossModel>();
   spectrumChannel->AddPropagationLossModel(lossModel);
@@ -326,7 +335,7 @@ int main(int argc, char *argv[])
   std::vector<NetDeviceContainer> StaDevices(numAp);
   NetDeviceContainer ApDevices = NetDeviceContainer();
 
-  std::vector<Ptr<WifiNetDevice>> ap2Device(numAp);
+  Ptr<WifiNetDevice> apDevice;
   for (int32_t i = 0; i < numAp; i++)
   {
     ssid = Ssid(std::to_string(i)); //The IEEE 802.11 SSID Information Element.
@@ -359,8 +368,8 @@ int main(int argc, char *argv[])
     //Sets BSS color
     if ((technology == 0) && enableObssPd)
     {
-      ap2Device[i] = ApDevices.Get(i)->GetObject<WifiNetDevice>();
-      ap2Device[i]->GetHeConfiguration()->SetAttribute("BssColor", UintegerValue(i + 1));
+      apDevice = ApDevices.Get(i)->GetObject<WifiNetDevice>();
+      apDevice->GetHeConfiguration()->SetAttribute("BssColor", UintegerValue(i + 1));
     }
   }
 
@@ -428,7 +437,6 @@ int main(int argc, char *argv[])
   }
 
   // static routing
-  NodeContainer::Iterator iter;
 
   for (int32_t i = 0; i < numAp; i++)
   {
@@ -449,13 +457,15 @@ int main(int argc, char *argv[])
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferTx", MakeCallback(&MonitorSniffTx));
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
 
+  ApplicationContainer clientApps;
+  ApplicationContainer serverApps;
+
   //server
   if (udp)
   {
     PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 9));
-    ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
-    serverApps.Start(Seconds(0));
-    serverApps.Stop(Seconds(duration + 1));
+    serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
+
 
     //client
     OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 9)));
@@ -464,16 +474,13 @@ int main(int argc, char *argv[])
     onoff.SetAttribute("PacketSize", UintegerValue(UDPpayloadSize));
     onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-    ApplicationContainer clientApps = onoff.Install(wifiStaNodes);
-    clientApps.Start(Seconds(1.0));
-    clientApps.Stop(Seconds(duration + 1));
+    clientApps = onoff.Install(wifiStaNodes);
+
   }
   else
   {
     PacketSinkHelper packetSinkHelper("ns3::TcpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 5000));
-    ApplicationContainer serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
-    serverApps.Start(Seconds(0));
-    serverApps.Stop(Seconds(duration + 1));
+    serverApps = packetSinkHelper.Install(csmaNodes.Get(numAp));
 
     //client
     OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(csmaInterfaces.GetAddress(numAp), 5000)));
@@ -482,10 +489,13 @@ int main(int argc, char *argv[])
     onoff.SetAttribute("PacketSize", UintegerValue(TCPpayloadSize));
     onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-    ApplicationContainer clientApps = onoff.Install(wifiStaNodes);
-    clientApps.Start(Seconds(1.0));
-    clientApps.Stop(Seconds(duration + 1));
+    clientApps = onoff.Install(wifiStaNodes);
   }
+
+  serverApps.Start(MilliSeconds(timeStartServerApps));
+  serverApps.Stop(Seconds(duration + 1));
+  clientApps.Start(MilliSeconds(timeStartClientApps)); //2.0
+  clientApps.Stop(Seconds(duration + 1));
 
   /** Energy Model **/
   /***************************************************************************/
@@ -539,8 +549,8 @@ int main(int argc, char *argv[])
   //flow monitor logging
   /**************************************************************************/
   Ptr<FlowMonitor> flowMonitor;
-  FlowMonitorHelper flowHelper;
-  flowMonitor = flowHelper.InstallAll();
+  FlowMonitorHelper flowMonHelper;
+  flowMonitor = flowMonHelper.InstallAll();
   //Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
   Simulator::Stop(Seconds(duration + 1));
@@ -591,6 +601,99 @@ int main(int argc, char *argv[])
 
   //     std::cout<<packetsSent[j]<<"\t"<<packetsReceived[j]<<std::endl;
   //   }
+
+
+
+  std::string outputDir = "res";
+  std::string simTag = "wifi_spatial_reuse";
+  std::string file = outputDir + "testflow.xml";
+  flowMonitor->SerializeToXmlFile(file.c_str(), true, true);
+  // Print per-flow statistics
+  flowMonitor->CheckForLostPackets ();
+  Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowMonHelper.GetClassifier ());
+  FlowMonitor::FlowStatsContainer stats = flowMonitor->GetFlowStats ();
+
+  double averageFlowThroughput = 0.0;
+  double averageFlowDelay = 0.0;
+
+  std::ofstream outFile;
+
+  filename = simTag;
+  outFile.open (filename.c_str (), std::ofstream::out | std::ofstream::trunc);
+  if (!outFile.is_open ())
+    {
+      std::cerr << "Can't open file " << filename << std::endl;
+      return 1;
+    }
+
+  outFile.setf (std::ios_base::fixed);
+
+  outFile << "Flow;source;src_port;destiny;dst_port;proto;service;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio \n";
+  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
+    {
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
+      std::stringstream protoStream;
+      protoStream << (uint16_t) t.protocol;
+      if (t.protocol == 6)
+        {
+          protoStream.str ("TCP");
+        }
+      if (t.protocol == 17)
+        {
+          protoStream.str ("UDP");
+        }
+      outFile <<  i->first << ";";
+      outFile <<  t.sourceAddress << ";" << t.sourcePort << ";" << t.destinationAddress << ";" << t.destinationPort  << ";";
+      outFile << protoStream.str() << ";";
+      // if (t.sourcePort <= VideoPortServer){
+      //   //Service , direction
+      //   outFile << get_service(t.sourcePort) << ";";
+      // }else{
+      //     outFile << get_service(t.destinationPort) << ";";
+      // }
+
+      if (t.sourceAddress == "10.1.1.10"){
+        outFile << "download"  << ";";
+      }else {
+        outFile << "upload"  << ";";
+      }
+
+      outFile <<  i->second.txPackets << ";";
+      outFile <<  i->second.txBytes << ";";
+      outFile <<  i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0)  << ";";
+      outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) / 1000.0 / 1000.0  << ";";
+      outFile << i->second.rxBytes << ";";
+      if (i->second.rxPackets > 0)
+        {
+          double rxDuration = (timeStartServerApps - timeStartClientApps) / 1000.0;
+          averageFlowThroughput += i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000;
+          averageFlowDelay += 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets;
+
+          outFile  << i->second.rxBytes * 8.0 / rxDuration  << ";";
+          outFile  << i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000  << ";";
+          outFile  << 1000 * i->second.delaySum.GetSeconds () / i->second.rxPackets << ";";
+          outFile  << 1000 * i->second.jitterSum.GetSeconds () / i->second.rxPackets  << ";";
+        }
+      else
+        {
+          outFile << "0;";
+          outFile << "0;";
+          outFile << "0;";
+          outFile << "0;";
+        }
+      outFile << i->second.rxPackets << ";";
+      int lost_packets = (i->second.txPackets - i->second.rxPackets);
+      outFile << lost_packets << ";";
+      outFile << ( lost_packets * 1.0 / i->second.txPackets) * 100.0 << "\n";
+    }
+
+  outFile.close ();
+  std::ifstream f (filename.c_str ());
+  if (f.is_open())
+    {
+      std::cout << f.rdbuf();
+    }
+
 
   Simulator::Destroy();
   for (int i = 0; i < numNodes - 1; i++)

@@ -1,7 +1,7 @@
 # cenario_IoT
 # configuring and building ns-3 (with examples and tests)
 ```
-cd /ns-allinone-3.30/ns-3.30
+cd /ns-allinone-3.33/ns-3.33
 ```
 ```
 ./waf clean
@@ -10,7 +10,7 @@ cd /ns-allinone-3.30/ns-3.30
 ```
 
 # running file
-place critical_iot.cc file on the /ns-allinone-3.30/ns-3.30/scratch
+place critical_iot.cc file on the /ns-allinone-3.33/ns-3.33/scratch
 ```
 ./waf --run critical_iot
 ```
