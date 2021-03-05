@@ -75,7 +75,10 @@
 #include "ns3/packet-socket-helper.h"
 #include "ns3/packet-socket-client.h"
 #include "ns3/packet-socket-server.h"
-
+#include "ns3/wifi-radio-energy-model-helper.h"
+#include "ns3/energy-source-container.h"
+#include "ns3/li-ion-energy-source-helper.h"
+#include "ns3/li-ion-energy-source.h"
 
 
 #include <iomanip>
@@ -87,7 +90,6 @@
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/ipv4-flow-classifier.h"
 #include "ns3/internet-module.h"
-// #include "ns3/udp-client-server-helper.h"
 
 #include "ns3/on-off-helper.h"
 #include "ns3/packet-sink-helper.h"
@@ -109,18 +111,37 @@ ContextToNodeId (std::string context)
   return atoi (sub.substr (0, pos).c_str ());
 }
 
-void
-SocketRx (std::string context, Ptr<const Packet> p, const Address &addr)
-{
-  uint32_t nodeId = ContextToNodeId (context);
-  bytesReceived[nodeId] += p->GetSize ();
-}
-
 void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise, uint16_t staId)
 {
   uint32_t nodeId = ContextToNodeId (context);
   bytesReceived[nodeId] += packet->GetSize ();
 }
+
+// Trace function for remaining energy at node.
+void RemainingEnergy(std::string context, double oldValue, double remainingEnergy)
+{
+
+  int32_t nodeId = std::stoi(context);
+  if (verbose)
+  {
+    NS_LOG_UNCOND(Simulator::Now().GetSeconds()
+                  << "s " << nodeId << " Current remaining energy = " << remainingEnergy << "J");
+  }
+  //fprintf(energyRemainingFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), remainingEnergy);
+}
+
+// Trace function for total energy consumption at node.
+void TotalEnergy(std::string context, double oldValue, double totalEnergy)
+{
+  int32_t nodeId = std::stoi(context);
+  if (verbose)
+  {
+    NS_LOG_UNCOND(Simulator::Now().GetSeconds()
+                  << "s " << nodeId << " Total energy consumed by radio = " << totalEnergy << "J");
+  }
+  //fprintf(energyConsumedFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), totalEnergy);
+}
+/***************************************************************************/
 
 int
 main (int argc, char *argv[])
@@ -152,6 +173,14 @@ main (int argc, char *argv[])
   int numRxSpatialStreams = 2;    // number of Rx Spatial Streams
   int numTxSpatialStreams = 2;    // number of Tx Spatial Streams
   int numAntennas = 2;            // number of Antenas
+
+  //default ns3 energy values 802.11n (2.4GHz)
+  double TxCurrentA = 0.38;
+  double RxCurrentA = 0.313;
+  double IdleCurrentA = 0.273;
+  double SleepCurrentA = 0.033;
+  double CcaBusyCurrentA = 0.273;
+  double SwitchingCurrentA = 0.273;
 
   uint32_t timeStartServerApps = 1000;
   uint32_t timeStartClientApps = 2000;
@@ -226,12 +255,29 @@ main (int argc, char *argv[])
     {
     case 2:
       wifi.SetStandard(WIFI_STANDARD_80211ax_2_4GHZ);
+      
       break;
     case 5:
       wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ);
+
+      //val aproximados
+      TxCurrentA = 0.52364;
+      RxCurrentA = 0.417229;
+      IdleCurrentA = 0.374283;
+      SleepCurrentA = 0.035211;
+      CcaBusyCurrentA = 0.374283;
+      SwitchingCurrentA = 0.374283;
       break;
     case 6:
       wifi.SetStandard(WIFI_STANDARD_80211ax_6GHZ);
+
+      //val aproximados
+      TxCurrentA = 0.52364;
+      RxCurrentA = 0.417229;
+      IdleCurrentA = 0.374283;
+      SleepCurrentA = 0.035211;
+      CcaBusyCurrentA = 0.374283;
+      SwitchingCurrentA = 0.374283;
       break;
     default:
       std::cout << "Wrong frequency." << std::endl;
@@ -252,6 +298,35 @@ main (int argc, char *argv[])
                                  "ControlMode", StringValue(oss.str()));
 
   }
+
+  //IEEE 802.11n
+  else if (technology == 1)
+  {
+    switch (frequency)
+    {
+    case 2:
+      wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
+      break;
+    case 5:
+      wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
+      break;
+    default:
+      std::cout << "Wrong frequency." << std::endl;
+      return 0;
+    }
+
+    std::ostringstream oss;
+    oss << "HtMcs" << mcs;
+    wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
+                                 "DataMode", StringValue(oss.str()),
+                                 "ControlMode", StringValue(oss.str()));
+  }
+  else
+  {
+    // if no supported technology is selected
+    return 0;
+  }
+
   WifiMacHelper mac;
   Ssid ssid;
   std::vector<NetDeviceContainer> staDevices(numAp);
@@ -395,7 +470,7 @@ main (int argc, char *argv[])
       onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
       onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
       onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
-      onoff.SetAttribute("DataRate", DataRateValue(10000)); //bit/s
+      onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
       for (int32_t j = 0; j < numSta; j++)
       {
@@ -413,7 +488,7 @@ main (int argc, char *argv[])
       onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
       onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
       onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize));
-      onoff.SetAttribute("DataRate", DataRateValue(10000)); //bit/s
+      onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
       for (int32_t j = 0; j < numSta; j++)
       {
@@ -428,42 +503,56 @@ main (int argc, char *argv[])
   serverApps.Stop(Seconds(duration + 1));
   clientApps.Start(MilliSeconds(timeStartClientApps)); //2.0
   clientApps.Stop(Seconds(duration + 1));
-  // //BSS 1
-  // {
-  //   PacketSocketAddress socketAddr;
-  //   socketAddr.SetSingleDevice (staDeviceA.Get (0)->GetIfIndex ());
-  //   socketAddr.SetPhysicalAddress (apDeviceA.Get (0)->GetAddress ());
-  //   socketAddr.SetProtocol (1);
-  //   Ptr<PacketSocketClient> client = CreateObject<PacketSocketClient> ();
-  //   client->SetRemote (socketAddr);
-  //   wifiStaNodes.Get (0)->AddApplication (client);
-  //   client->SetAttribute ("PacketSize", UintegerValue (payloadSize));
-  //   client->SetAttribute ("MaxPackets", UintegerValue (0));
-  //   client->SetAttribute ("Interval", TimeValue (Seconds (interval)));
-  //   Ptr<PacketSocketServer> server = CreateObject<PacketSocketServer> ();
-  //   server->SetLocal (socketAddr);
-  //   wifiApNodes.Get (0)->AddApplication (server);
-  // }
 
-  // // BSS 2
-  // {
-  //   PacketSocketAddress socketAddr;
-  //   socketAddr.SetSingleDevice (staDeviceB.Get (0)->GetIfIndex ());
-  //   socketAddr.SetPhysicalAddress (apDeviceB.Get (0)->GetAddress ());
-  //   socketAddr.SetProtocol (1);
-  //   Ptr<PacketSocketClient> client = CreateObject<PacketSocketClient> ();
-  //   client->SetRemote (socketAddr);
-  //   wifiStaNodes.Get (1)->AddApplication (client);
-  //   client->SetAttribute ("PacketSize", UintegerValue (payloadSize));
-  //   client->SetAttribute ("MaxPackets", UintegerValue (0));
-  //   client->SetAttribute ("Interval", TimeValue (Seconds (interval)));
-  //   Ptr<PacketSocketServer> server = CreateObject<PacketSocketServer> ();
-  //   server->SetLocal (socketAddr);
-  //   wifiApNodes.Get (1)->AddApplication (server);
-  // }
+  /** Energy Model **/
+  /***************************************************************************/
+  /* energy source */
+  LiIonEnergySourceHelper basicSourceHelper;
+  // configure energy source
+  basicSourceHelper.Set("LiIonEnergySourceInitialEnergyJ", DoubleValue(batteryLevel));
+  // install source
+  EnergySourceContainer sources = basicSourceHelper.Install(wifiStaNodes);
+  /* device energy model */
+  WifiRadioEnergyModelHelper radioEnergyHelper;
+  // configure radio energy model
+  radioEnergyHelper.Set("TxCurrentA", DoubleValue(TxCurrentA));
+  radioEnergyHelper.Set("RxCurrentA", DoubleValue(RxCurrentA));
+  radioEnergyHelper.Set("IdleCurrentA", DoubleValue(IdleCurrentA));
+  radioEnergyHelper.Set("SleepCurrentA", DoubleValue(SleepCurrentA));
+  radioEnergyHelper.Set("CcaBusyCurrentA", DoubleValue(CcaBusyCurrentA));
+  radioEnergyHelper.Set("SwitchingCurrentA", DoubleValue(SwitchingCurrentA));
+
+  // install device model
+  DeviceEnergyModelContainer deviceModels = DeviceEnergyModelContainer();
+
+  for (int32_t i = 0; i < numAp; i++)
+  {
+    for (int32_t j = 0; j < numSta; j++)
+    {
+      deviceModels.Add(radioEnergyHelper.Install(staDevices[i].Get(j), sources.Get(j + i * numSta)));
+    }
+  }
 
 
-  //Config::Connect ("/NodeList/*/ApplicationList/*/$ns3::PacketSocketServer/Rx", MakeCallback (&SocketRx));
+  /** connect trace sources **/
+  /***************************************************************************/
+  //energy source
+  for (int32_t i = 0; i < numAp * numSta; i++)
+  {
+    Ptr<LiIonEnergySource> basicSourcePtr = DynamicCast<LiIonEnergySource>(sources.Get(i));
+
+      basicSourcePtr->TraceConnect("RemainingEnergy", std::to_string(i), MakeCallback(&RemainingEnergy));
+
+    // device energy model
+    Ptr<DeviceEnergyModel> basicRadioModelPtr = basicSourcePtr->FindDeviceEnergyModels("ns3::WifiRadioEnergyModel").Get(0);
+    NS_ASSERT(basicRadioModelPtr != NULL);
+
+      basicRadioModelPtr->TraceConnect("TotalEnergyConsumption", std::to_string(i), MakeCallback(&TotalEnergy));
+  }
+
+  //Config::Connect("/NodeList/*/DeviceList/*/Phy/WifiRadioEnergyModel", MakeCallback(&TotalEnergy));
+  //Config::Connect("/NodeList/*/DeviceList/*/Phy/LiIonEnergySource", MakeCallback(&RemainingEnergy));
+ 
   Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
 
 
@@ -476,12 +565,18 @@ main (int argc, char *argv[])
   //Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
   Simulator::Stop (Seconds (duration+1));
+
+  if (tracing == true)
+  {
+    spectrumPhy.EnablePcap("critical_iot", apDevices);
+  }
+
   Simulator::Run ();
 
   
-  for (uint32_t i = 0; i < 2; i++)
+  for (int32_t i = 0; i < numAp; i++)
     {
-      double throughput = static_cast<double> (bytesReceived[2 + i]) * 8 / 1000 / 1000 / duration;
+      double throughput = static_cast<double> (bytesReceived[numSta + i]) * 8 / 1000 / 1000 / duration;
       std::cout << "Throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
     }
 
