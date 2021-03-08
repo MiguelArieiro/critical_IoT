@@ -411,8 +411,8 @@ main (int argc, char *argv[])
   mobility.SetPositionAllocator("ns3::GridPositionAllocator",
                                 "MinX", DoubleValue(0),
                                 "MinY", DoubleValue(0),
-                                "DeltaX", DoubleValue(2 * distance),
-                                "DeltaY", DoubleValue(2 * distance),
+                                "DeltaX", DoubleValue(distance),
+                                "DeltaY", DoubleValue(distance),
                                 "GridWidth", UintegerValue(edge_size),
                                 "LayoutType", StringValue("RowFirst"));
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
