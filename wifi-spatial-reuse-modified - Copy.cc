@@ -151,31 +151,28 @@ main (int argc, char *argv[])
   // double d3 = 150.0; // meters
 
   bool tracing = false;
-  double duration = 10.0;           // seconds
-  double powSta = 10.0;             // dBm
-  double powAp = 21.0;              // dBm
-  double ccaEdTrSta = -62;          // dBm
-  double ccaEdTrAp = -62;           // dBm
-  double rxSensSta = -92;           // dBm
-  double rxSensAp = -92;            // dBm
-  int32_t tcpPayloadSize = 60;      // bytes
-  int32_t udpPayloadSize = 40;      // bytes
-  int32_t mcs = 7;                  // MCS value
-  int64_t dataRate = 10000;         // bits/s
-  double obssPdThreshold = -82.0;   // dBm
-  bool enableObssPd = true;         // spatial reuse
-  bool useUdp = false;                 // udp or tcp
-  bool useRts = false;              // enable RTS/CTS
-  bool useExtendedBlockAck = false; // enable Extended Block Ack
-  int guardInterval = 3200;                    // guard interval
-  double batteryLevel = 200000;         // initial battery energy
-  int technology = 0;               // technology to be used 802.11ax = 0, 5G = 1;
-  double distance = 10;             // mobility model quadrant size
-  int frequency = 5;                // frequency selection
-  int channelWidth = 20;            // channel number
-  int numRxSpatialStreams = 2;      // number of Rx Spatial Streams
-  int numTxSpatialStreams = 2;      // number of Tx Spatial Streams
-  int numAntennas = 2;              // number of Antenas
+  double duration = 10.0;         // seconds
+  double powSta = 10.0;           // dBm
+  double powAp = 21.0;            // dBm
+  double ccaEdTrSta = -62;        // dBm
+  double ccaEdTrAp = -62;         // dBm
+  double rxSensSta = -92;         // dBm
+  double rxSensAp = -92;          // dBm
+  int32_t tcpPayloadSize = 60;    // bytes
+  int32_t udpPayloadSize = 40;    // bytes
+  int32_t mcs = 7;                // MCS value
+  int64_t dataRate = 10000;     // bits/s
+  double obssPdThreshold = -82.0; // dBm
+  bool enableObssPd = true;       // spatial reuse
+  bool udp = false;               // udp or tcp
+  double batteryLevel = 20;       // initial battery energy
+  int technology = 0;             // technology to be used 802.11ax = 0, 5G = 1;
+  double distance = 10;           // mobility model quadrant size
+  int frequency = 5;              // frequency selection
+  int channelWidth = 20;          // channel number
+  int numRxSpatialStreams = 2;    // number of Rx Spatial Streams
+  int numTxSpatialStreams = 2;    // number of Tx Spatial Streams
+  int numAntennas = 2;            // number of Antenas
 
   //default ns3 energy values 802.11n (2.4GHz)
   double TxCurrentA = 0.38;
@@ -204,7 +201,7 @@ main (int argc, char *argv[])
   cmd.AddValue("rxSensSta", "RX Sensitivity of STA (dBm)", rxSensSta);
   cmd.AddValue("rxSensAp", "RX Sensitivity of AP (dBm)", rxSensAp);
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
-  cmd.AddValue("useUdp", "UDP if set to 1, TCP otherwise", useUdp);
+  cmd.AddValue("udp", "UDP if set to 1, TCP otherwise", udp);
   cmd.AddValue("batteryLevel", "Initial energy level (J)", batteryLevel);
   cmd.AddValue("numAp", "Number of Wifi Access Points", numAp);
   cmd.AddValue("numSta", "Number of Wifi Stations per AP", numSta);
@@ -214,9 +211,6 @@ main (int argc, char *argv[])
   cmd.AddValue("udpPayloadSize", "UDP packet size", udpPayloadSize);
   cmd.AddValue("frequency", "Wifi device frequency. 2 - 2.4GHz, 5 - 5GHz, 6 - 6GHz", frequency);
   cmd.AddValue("channelWidth", "Defines wifi channel number", channelWidth);
-  cmd.AddValue("useRts", "Enable/disable RTS/CTS", useRts);
-  cmd.AddValue("useExtendedBlockAck", "Enable/disable use of Extended Block Ack", useExtendedBlockAck);
-  cmd.AddValue("guardInterval", "Set guard interval (ns)", guardInterval);
   cmd.AddValue("numTxSpatialStreams", "Number of Tx Spatial Streams", numTxSpatialStreams);
   cmd.AddValue("numRxSpatialStreams", "Number of Rx Spatial Streams", numRxSpatialStreams);
   cmd.AddValue("numAntennas", "Number of Rx Spatial Streams", numAntennas);
@@ -229,12 +223,6 @@ main (int argc, char *argv[])
   if ((numAp*(numSta+1)+1)>MAX_NODES){
     std::cout<<"Error: Limit number of nodes: "<<MAX_NODES<<std::endl;
   }
-
-  if (useRts)
-  {
-    Config::SetDefault ("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue ("0"));
-  }
-
 
   NodeContainer wifiStaNodes;
   wifiStaNodes.Create(numSta * numAp);
@@ -321,14 +309,6 @@ main (int argc, char *argv[])
       break;
     case 5:
       wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
-
-      //val aproximados
-      TxCurrentA = 0.52364;
-      RxCurrentA = 0.417229;
-      IdleCurrentA = 0.374283;
-      SleepCurrentA = 0.035211;
-      CcaBusyCurrentA = 0.374283;
-      SwitchingCurrentA = 0.374283;
       break;
     default:
       std::cout << "Wrong frequency." << std::endl;
@@ -346,9 +326,6 @@ main (int argc, char *argv[])
     // if no supported technology is selected
     return 0;
   }
-
-  //spectrumPhy.Set("ChannelWidth", UintegerValue(channelWidth));
-
 
   WifiMacHelper mac;
   Ssid ssid;
@@ -394,15 +371,17 @@ main (int argc, char *argv[])
     }
   }
 
-  // Set channel width, guard interval and MPDU buffer size
-  Config::Set ("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/Phy/ChannelWidth", UintegerValue (channelWidth));
-  Config::Set ("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/HeConfiguration/GuardInterval", TimeValue (NanoSeconds (guardInterval)));
-  Config::Set ("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/HeConfiguration/MpduBufferSize", UintegerValue (useExtendedBlockAck ? 256 : 64));
-
-
-  /** Mobility Model **/
-  /***************************************************************************/
   MobilityHelper mobility;
+  // Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
+  // positionAlloc->Add (Vector (0.0, 0.0, 0.0)); // AP1
+  // positionAlloc->Add (Vector (d3, 0.0, 0.0));  // AP2
+  // positionAlloc->Add (Vector (0.0, d1, 0.0));  // STA1
+  // positionAlloc->Add (Vector (d3, d2, 0.0));   // STA2
+  // mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+  // mobility.SetPositionAllocator (positionAlloc);
+  // mobility.Install (wifiApNodes);
+  // mobility.Install (wifiStaNodes);
+
 
   int32_t edge_size = (ceil(sqrt(numAp)));
   int32_t sta_edge_size = (ceil(sqrt(numSta)));
@@ -429,7 +408,6 @@ main (int argc, char *argv[])
     }
   }
 
-  // AP pos
   mobility.SetPositionAllocator("ns3::GridPositionAllocator",
                                 "MinX", DoubleValue(0),
                                 "MinY", DoubleValue(0),
@@ -481,14 +459,14 @@ main (int argc, char *argv[])
   ApplicationContainer serverApps;
 
 
-  if (useUdp){
-    PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 9));
+  if (udp){
+    PacketSinkHelper packetSinkHelper("ns3::UdpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 5000));
     serverApps = packetSinkHelper.Install(wifiApNodes);
 
     //client
     for (int32_t i = 0; i < numAp; i++)
     {
-      OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 9)));
+      OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 5000)));
       onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
       onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
       onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
@@ -602,7 +580,7 @@ main (int argc, char *argv[])
       std::cout << "Throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
     }
 
-  std::string outputDir = "res/";
+  std::string outputDir = "res";
   std::string simTag = "wifi_spatial_reuse";
   std::string file = outputDir + "testflow.xml";
   flowMonitor->SerializeToXmlFile(file.c_str(), true, true);
