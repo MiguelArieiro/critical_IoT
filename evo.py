@@ -17,7 +17,7 @@ elite_per = 0.3
 random_per = 0.2
 minimum_throughput = 0.5
 
-#indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck]
+
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
 scenario = {0: [2, 1, 10, 20], 1: [12, 16, 30, 20], 2: [12, 64, 60, 20]}
@@ -34,9 +34,10 @@ channelWidth = {2 : [20,40], 5 : [20, 40, 80, 160], 6 : [20, 40, 80, 160]}
 # {technology: [800ns, 1600ns, 3200ns]}
 guardInterval = {0: [800, 1600, 3200], 1: [0, 1]}
 
+#indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1]]
 
-mcs 
+
 
 cmd_str ="wifi-spatial-reuse-modified -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d"
 
@@ -161,6 +162,15 @@ def main ():
         population = gen_new_population (population, offspring)
         if verbose:
             print(population)
+
+# pop -> offspring
+# pop = top(pop+offspring)
+
+# top(pop) -> offsprig
+# pop = top(pop) + offspring
+
+# top(pop) -> offsprig
+# pop = top(pop) + offspring + estrangeiros
 
 if __name__ == "__main__":
     main()
