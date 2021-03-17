@@ -5,3 +5,4 @@ desktop.ini
 subdir/
 debug.log
 scratch-simulator.cc
+*.code-workspace
