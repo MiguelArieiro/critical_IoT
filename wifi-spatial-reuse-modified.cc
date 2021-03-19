@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
   double rxSensAp = -92;            // dBm
   int32_t tcpPayloadSize = 60;      // bytes
   int32_t udpPayloadSize = 40;      // bytes
-  int32_t mcs = 7;                  // MCS value
+  int32_t mcs = 11;                  // MCS value
   int64_t dataRate = 10000;         // bits/s
   double obssPdThreshold = -82.0;   // dBm
   bool enableObssPd = true;         // spatial reuse
@@ -172,9 +172,9 @@ int main(int argc, char *argv[])
   double distance = 10;             // mobility model quadrant size
   int frequency = 5;                // frequency selection
   int channelWidth = 20;            // channel number
-  int numRxSpatialStreams = 2;      // number of Rx Spatial Streams
-  int numTxSpatialStreams = 2;      // number of Tx Spatial Streams
-  int numAntennas = 2;              // number of Antenas
+  int numRxSpatialStreams = 1;      // number of Rx Spatial Streams
+  int numTxSpatialStreams = 1;      // number of Tx Spatial Streams
+  int numAntennas = 1;              // number of Antenas
 
   //default ns3 energy values 802.11n (2.4GHz)
   double TxCurrentA = 0.38;
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
     {
     case 2:
       wifi.SetStandard(WIFI_STANDARD_80211ax_2_4GHZ);
-
+      Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (40));
       break;
     case 5:
       wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ);
@@ -281,6 +281,7 @@ int main(int argc, char *argv[])
       break;
     case 6:
       wifi.SetStandard(WIFI_STANDARD_80211ax_6GHZ);
+      Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (48));
 
       //val aproximados
       TxCurrentA = 0.52364;
@@ -320,6 +321,7 @@ int main(int argc, char *argv[])
     {
     case 2:
       wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
+      Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (40.046));
       break;
     case 5:
       wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
@@ -349,7 +351,7 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  //spectrumPhy.Set("ChannelWidth", UintegerValue(channelWidth));
+  spectrumPhy.Set("ChannelWidth", UintegerValue(channelWidth));
 
   WifiMacHelper mac;
   Ssid ssid;
@@ -395,7 +397,7 @@ int main(int argc, char *argv[])
   }
 
   // Set channel width, guard interval and MPDU buffer size
-  Config::Set("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/Phy/ChannelWidth", UintegerValue(channelWidth));
+  //Config::Set("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/Phy/ChannelWidth", UintegerValue(channelWidth));
 
   if (technology == 0)
   { //802.11ax
@@ -404,7 +406,7 @@ int main(int argc, char *argv[])
   }
   else
   { //802.11n
-    //Config::Set("/NodeList//DeviceList//$ns3::WifiNetDevice/HtConfiguration/ShortGuardIntervalSupported", BooleanValue(guardInterval));
+    Config::Set("/NodeList//DeviceList//$ns3::WifiNetDevice/HtConfiguration/ShortGuardIntervalSupported", BooleanValue(guardInterval));
   }
 
   /** Mobility Model **/

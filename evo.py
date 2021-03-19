@@ -37,14 +37,15 @@ guardInterval = {0: [800, 1600, 3200], 1: [0, 1]}
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1]]
 
+mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7], 1: [0, 1, 2, 3, 4, 5, 6, 7]}
 
 
-cmd_str ="wifi-spatial-reuse-modified -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d"
+cmd_str ="wifi-spatial-reuse-modified -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs= %d"
 
 
 
 def gen_indiv():
-    #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck]
+    #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
     global param
 
     #param[][random.randint(0, len(param[]) - 1)]
@@ -52,7 +53,7 @@ def gen_indiv():
     freq = param[1][tech][random.randint(0, len (param[1][tech]) - 1)]
 
 
-    indiv = [tech, freq, param[2][freq][random.randint(0, len(param[2][freq]) - 1)], param[3][random.randint(0, len(param[3]) - 1)], param[4][random.randint(0, len(param[4]) - 1)], param[5][tech][random.randint(0, len(param[5][tech]) - 1)], param[6][random.randint(0, len(param[6]) - 1)], param[7][random.randint(0, len(param[7]) - 1)], sys.maxsize]
+    indiv = [tech, freq, param[2][freq][random.randint(0, len(param[2][freq]) - 1)], param[3][random.randint(0, len(param[3]) - 1)], param[4][random.randint(0, len(param[4]) - 1)], param[5][tech][random.randint(0, len(param[5][tech]) - 1)], param[6][random.randint(0, len(param[6]) - 1)], param[7][random.randint(0, len(param[7]) - 1)], param[8][tech][random.randint(0, len(param[8][tech]) - 1)], sys.maxsize]
     return indiv
 
 def heuristic (energy, real_throughput, minimum_throughput):
@@ -111,8 +112,8 @@ def mutate(original_indiv, mutation_prob):    #TODO test
                     temp = param[i][indiv[i-1]][random.randint(0, len(param[i][indiv[i-1]]) - 1)]
                 indiv[i] = temp
 
-            #guardInterval
-            elif i == 5:
+            #guardInterval and mcs
+            elif (i == 5) or (i == 8):
                 temp=indiv[i]
                 while (temp == indiv[i]):
                     temp = param[i][indiv[0]][random.randint(0, len(param[i][indiv[0]]) - 1)]
@@ -132,6 +133,8 @@ def mutate(original_indiv, mutation_prob):    #TODO test
                 indiv[2] = param[2][indiv[1]][random.randint(0, len(param[2][indiv[1]]) - 1)]
             if indiv[5] not in param[5][indiv[0]]:
                 indiv[5] = param[5][indiv[0]][random.randint(0, len(param[5][indiv[0]]) - 1)]
+            if indiv[8] not in param[8][indiv[0]]:
+                indiv[8] = param[8][indiv[0]][random.randint(0, len(param[8][indiv[0]]) - 1)]
     
     return indiv
 

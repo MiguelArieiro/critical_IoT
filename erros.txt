@@ -10,3 +10,5 @@ assert failed. cond="firstPower_it != m_firstPowerPerBand.end ()", +0.043069033s
 
 assert failed. cond="(numBandsInChannel % 2 == 1) && (totalNumBands % 2 == 1)", msg="Should have odd number of bands", +0.043069033s 1 file=../src/wifi/model/spectrum-wifi-phy.cc, line=526
 -numAp=2 -numSta=1 -duration=10 -dataRate=20 -technology=0 -frequency=2 -channelWidth=20 -useUdp=1 -useRts=0 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0
+
+-numAp=2 -numSta=2 -duration=10 -dataRate=50 -technology=0 -frequency=2 -channelWidth=40 -useUdp=0 -useRts=0 -guardInterval=3200 -enableObssPd=0 -useExtendedBlockAck=1
