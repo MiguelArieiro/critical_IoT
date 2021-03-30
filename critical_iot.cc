@@ -618,7 +618,7 @@ int main(int argc, char *argv[])
 
   std::ofstream outFile;
 
-  x = simTag;
+  filename = simTag;
   outFile.open (filename.c_str (), std::ofstream::out | std::ofstream::trunc);
   if (!outFile.is_open ())
     {

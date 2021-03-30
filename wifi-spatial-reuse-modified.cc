@@ -172,9 +172,9 @@ int main(int argc, char *argv[])
   double distance = 10;             // mobility model quadrant size
   int frequency = 5;                // frequency selection
   int channelWidth = 20;            // channel number
-  int numRxSpatialStreams = 1;      // number of Rx Spatial Streams
-  int numTxSpatialStreams = 1;      // number of Tx Spatial Streams
-  int numAntennas = 1;              // number of Antenas
+  int numRxSpatialStreams = 4;      // number of Rx Spatial Streams
+  int numTxSpatialStreams = 4;      // number of Tx Spatial Streams
+  int numAntennas = 4;              // number of Antenas
 
   //default ns3 energy values 802.11n (2.4GHz)
   double TxCurrentA = 0.38;
@@ -448,7 +448,7 @@ int main(int argc, char *argv[])
                                 "LayoutType", StringValue("RowFirst"));
   mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   mobility.Install(wifiApNodes);
-  std::cout << "Mobility model configured\n";
+  //std::cout << "Mobility model configured\n";
 
   // Routing
   InternetStackHelper stack;
@@ -604,7 +604,9 @@ int main(int argc, char *argv[])
   for (int32_t i = 0; i < numAp; i++)
   {
     double throughput = static_cast<double>(bytesReceived[numSta + i]) * 8 / 1000 / 1000 / duration;
-    std::cout << "Throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
+    if (verbose){
+      std::cout << "Throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
+    }
   }
 
   std::string outputDir = "res/";
@@ -619,94 +621,117 @@ int main(int argc, char *argv[])
   double averageFlowThroughput = 0.0;
   double averageFlowDelay = 0.0;
 
-  std::ofstream outFile;
 
-  std::string filename = simTag;
-  outFile.open(filename.c_str(), std::ofstream::out | std::ofstream::trunc);
-  if (!outFile.is_open())
+
+  if (verbose){
+
+    std::ofstream outFile;
+
+    std::string filename = simTag;
+    outFile.open(filename.c_str(), std::ofstream::out | std::ofstream::trunc);
+    if (!outFile.is_open())
+    {
+      std::cerr << "Can't open file " << filename << std::endl;
+      return 1;
+    }
+
+    std::regex server_regex ("^172.*.0.1$");
+
+    outFile.setf(std::ios_base::fixed);
+
+    outFile << "Flow;source;src_port;destiny;dst_port;proto;service;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio \n";
+    for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin(); i != stats.end(); ++i)
+    {
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
+      std::stringstream protoStream;
+      protoStream << (uint16_t)t.protocol;
+      if (t.protocol == 6)
+      {
+        protoStream.str("TCP");
+      }
+      if (t.protocol == 17)
+      {
+        protoStream.str("UDP");
+      }
+      outFile << i->first << ";";
+      outFile << t.sourceAddress << ";" << t.sourcePort << ";" << t.destinationAddress << ";" << t.destinationPort << ";";
+      outFile << protoStream.str() << ";";
+      // if (t.sourcePort <= VideoPortServer){
+      //   //Service , direction
+      //   outFile << get_service(t.sourcePort) << ";";
+      // }else{
+      //     outFile << get_service(t.destinationPort) << ";";
+      // }
+
+      std::stringstream ss;
+      ss<<t.sourceAddress;
+      if (std::regex_match (ss.str(), server_regex))
+      {
+        outFile << "download"
+                << ";";
+      }
+      else
+      {
+        outFile << "upload"
+                << ";";
+      }
+
+      outFile << i->second.txPackets << ";";
+      outFile << i->second.txBytes << ";";
+      outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) << ";";
+      outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) / 1000.0 / 1000.0 << ";";
+      outFile << i->second.rxBytes << ";";
+      if (i->second.rxPackets > 0)
+      {
+        double rxDuration = (timeStartServerApps - timeStartClientApps) / 1000.0;
+        averageFlowThroughput += i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000;
+        averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
+
+        outFile << i->second.rxBytes * 8.0 / rxDuration << ";";
+        outFile << i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000 << ";";
+        outFile << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << ";";
+        outFile << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << ";";
+      }
+      else
+      {
+        outFile << "0;";
+        outFile << "0;";
+        outFile << "0;";
+        outFile << "0;";
+      }
+      outFile << i->second.rxPackets << ";";
+      int lost_packets = (i->second.txPackets - i->second.rxPackets);
+      outFile << lost_packets << ";";
+      outFile << (lost_packets * 1.0 / i->second.txPackets) * 100.0 << "\n";
+    }
+
+    outFile.close();
+    std::ifstream f(filename.c_str());
+    if (f.is_open())
+    {
+      std::cout << f.rdbuf();
+    }
+  }
+  //End Simulator
+
+  double avg_energy = 0.0;
+  double avg_throughput = 0.0;
+
+  for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
   {
-    std::cerr << "Can't open file " << filename << std::endl;
-    return 1;
+    double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
+    avg_energy += energyConsumed/(timeStartServerApps - timeStartClientApps);
+    //NS_ASSERT (energyConsumed <= 0.1);
   }
 
-  std::regex server_regex ("^172.*.0.1$");
-
-  outFile.setf(std::ios_base::fixed);
-
-  outFile << "Flow;source;src_port;destiny;dst_port;proto;service;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio \n";
   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin(); i != stats.end(); ++i)
   {
-    Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
-    std::stringstream protoStream;
-    protoStream << (uint16_t)t.protocol;
-    if (t.protocol == 6)
-    {
-      protoStream.str("TCP");
-    }
-    if (t.protocol == 17)
-    {
-      protoStream.str("UDP");
-    }
-    outFile << i->first << ";";
-    outFile << t.sourceAddress << ";" << t.sourcePort << ";" << t.destinationAddress << ";" << t.destinationPort << ";";
-    outFile << protoStream.str() << ";";
-    // if (t.sourcePort <= VideoPortServer){
-    //   //Service , direction
-    //   outFile << get_service(t.sourcePort) << ";";
-    // }else{
-    //     outFile << get_service(t.destinationPort) << ";";
-    // }
+    
+    avg_throughput += i->second.txBytes*8.0/ ((timeStartServerApps - timeStartClientApps) / 1000.0);
 
-    std::stringstream ss;
-    ss<<t.sourceAddress;
-    if (std::regex_match (ss.str(), server_regex))
-    {
-      outFile << "download"
-              << ";";
-    }
-    else
-    {
-      outFile << "upload"
-              << ";";
-    }
-
-    outFile << i->second.txPackets << ";";
-    outFile << i->second.txBytes << ";";
-    outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) << ";";
-    outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) / 1000.0 / 1000.0 << ";";
-    outFile << i->second.rxBytes << ";";
-    if (i->second.rxPackets > 0)
-    {
-      double rxDuration = (timeStartServerApps - timeStartClientApps) / 1000.0;
-      averageFlowThroughput += i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000;
-      averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
-
-      outFile << i->second.rxBytes * 8.0 / rxDuration << ";";
-      outFile << i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000 << ";";
-      outFile << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << ";";
-      outFile << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << ";";
-    }
-    else
-    {
-      outFile << "0;";
-      outFile << "0;";
-      outFile << "0;";
-      outFile << "0;";
-    }
-    outFile << i->second.rxPackets << ";";
-    int lost_packets = (i->second.txPackets - i->second.rxPackets);
-    outFile << lost_packets << ";";
-    outFile << (lost_packets * 1.0 / i->second.txPackets) * 100.0 << "\n";
   }
 
-  outFile.close();
-  std::ifstream f(filename.c_str());
-  if (f.is_open())
-  {
-    std::cout << f.rdbuf();
-  }
-
-  //End Simulator
+  std::cout << avg_energy/(numAp*numSta) << "\t" << avg_throughput/(numAp*numSta);
 
   Simulator::Destroy();
 
