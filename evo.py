@@ -6,6 +6,7 @@ import copy
 import numpy
 import concurrent.futures
 import time
+from math import sqrt
 
 __author__ = 'Miguel Arieiro'
 
@@ -228,16 +229,33 @@ def mutate_all(population, mutation_op=mutate_one):
     
     return offspring
 
-def update_stats(population):
+def hamming_distance(v1, v2):
+    return sum([l for i in range (len(vec_1)) if vec1])
+
+def hamming_distance(v1, v2):
+    pairs = list(zip(v1, v2))
+    return sqrt(sum([(pair[0] - pair[1])**2 for pair in pairs]))
+
+def update_stats(population, metric=hamming_distance):
 
     global best_per_gen
     global avg_per_gen
     global diversity
+    global pop_size
 
     population.sort(key=lambda x: x[-1])
     best_per_gen.append(population[0][-1])
     avg_per_gen.append(sum([f[-1] for f in population]) / len(population))
-    # diversity.append(len(set(tuple(i.permutation) for i in population)) / len(population))
+    
+    div=0
+    for i in range (len(population)):
+        for j in range (i+1, pop_size):
+            distance = metric(population[i], population[j])
+            if distance !=0:
+                div+=1
+    
+    diversity.append(div)
+    
 
 def calculate_stats():
 
@@ -252,8 +270,8 @@ def calculate_stats():
     global minFit
     global genMin
     global genMax
-    # global avgDiversity
-    # global stdDiversity
+    global avgDiversity
+    global stdDiversity
     
     avgBest = numpy.mean(best_per_gen)
     stdBest = numpy.std(best_per_gen)
@@ -263,8 +281,8 @@ def calculate_stats():
     minFit = min(best_per_gen)
     genMax = best_per_gen.index(maxFit)
     genMin = best_per_gen.index(minFit)
-    # avgDiversity = numpy.mean(diversity)
-    # stdDiversity = numpy.std(diversity)
+    avgDiversity = numpy.mean(diversity)
+    stdDiversity = numpy.std(diversity)
 
 def print_stats():
     global best_per_gen
@@ -279,10 +297,11 @@ def print_stats():
     global genMin
     global genMax
 
-    string = 'max: %d -> gen: %d/%d' % (maxFit, genMax, number_generations)
-    string += '\nmin: %d -> gen: %d/%d' % (minFit, genMin, number_generations)
-    string += '\navgBest: %d +- %d' % (avgBest, stdBest)
-    string += '\navgGen: %d +- %d' % (avgGen, stdGen)
+    string = 'max: %f -> gen: %d/%d' % (maxFit, genMax, number_generations)
+    string += '\nmin: %f -> gen: %d/%d' % (minFit, genMin, number_generations)
+    string += '\navgBest: %f +- %f' % (avgBest, stdBest)
+    string += '\navgGen: %f +- %f' % (avgGen, stdGen)
+    string += '\nAvgDiversity: %f +- %f' % (avgDiversity, stdDiversity)
     print (string)
     return
 
@@ -313,7 +332,7 @@ def main ():
         run_all (offspring, current_scen)
         population = gen_new_population (population, offspring, current_scen)
         run_all (population, current_scen)
-        update_stats(population)
+        update_stats(population, hamming_distance)
         if verbose:
             print(population)
     
