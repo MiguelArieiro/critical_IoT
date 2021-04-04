@@ -13,7 +13,7 @@ __author__ = 'Miguel Arieiro'
 verbose = True
 
 #parameters
-pop_size = 20
+pop_size = 50
 number_generations = 2
 elite_per = 0.3
 random_per = 0.2
@@ -230,11 +230,11 @@ def mutate_all(population, mutation_op=mutate_one):
     return offspring
 
 def hamming_distance(v1, v2):
-    return sum([l for i in range (len(vec_1)) if vec1])
+    return sum([1 for i in range (len(v1)-1) if v1[i] != v2 [i]]) # heuristic = v[-1]
 
-def hamming_distance(v1, v2):
-    pairs = list(zip(v1, v2))
-    return sqrt(sum([(pair[0] - pair[1])**2 for pair in pairs]))
+def euclidean_distance(v1, v2):
+    pairs = list(zip(v1[:-1], v2[:-1]))
+    return sqrt(sum([(pair[0] - pair[1])**2 for pair in pairs])) # heuristic = v[-1]
 
 def update_stats(population, metric=hamming_distance):
 
@@ -312,6 +312,7 @@ def main ():
     global random_per
     global minimum_throughput
     global scenario
+    metric = hamming_distance
 
     current_scen = scenario[0]
 
@@ -323,7 +324,8 @@ def main ():
     if verbose:
         print(population)
     #TODO add scenarios
-    
+    update_stats(population, metric)
+
     for run in range(number_generations):
         if verbose:
             print("run: %d" % run)
@@ -332,7 +334,7 @@ def main ():
         run_all (offspring, current_scen)
         population = gen_new_population (population, offspring, current_scen)
         run_all (population, current_scen)
-        update_stats(population, hamming_distance)
+        update_stats(population, metric)
         if verbose:
             print(population)
     
