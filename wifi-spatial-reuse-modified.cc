@@ -99,7 +99,7 @@
 
 using namespace ns3;
 
-#define MAX_NODES 500
+#define MAX_NODES 2048
 
 bool verbose = false;
 
@@ -154,30 +154,33 @@ int main(int argc, char *argv[])
   uint32_t runs = 3;
   bool tracing = true;
   double duration = 10.0;           // seconds
-  double powSta = 10.0;             // dBm
   double powAp = 21.0;              // dBm
-  double ccaEdTrSta = -62;          // dBm
+  double powSta = 10.0;             // dBm
   double ccaEdTrAp = -62;           // dBm
-  double rxSensSta = -92;           // dBm
+  double ccaEdTrSta = -62;          // dBm
   double rxSensAp = -92;            // dBm
-  int32_t tcpPayloadSize = 60;      // bytes
-  int32_t udpPayloadSize = 40;      // bytes
-  int32_t mcs = 11;                  // MCS value
-  int64_t dataRate = 10000;         // bits/s
-  double obssPdThreshold = -82.0;   // dBm
+  double rxSensSta = -92;           // dBm
+  uint32_t tcpPayloadSize = 60;      // bytes
+  uint32_t udpPayloadSize = 40;      // bytes
+  int32_t mcs = 11;                 // MCS value
+  uint64_t dataRate = 10000;         // bits/s
+  double distance = 25;             // mobility model quadrant size
+  int technology = 0;               // technology to be used 802.11ax = 0, 5G = 1;
+  int frequency = 5;                // frequency selection
+  int channelWidth = 20;            // channel number
+  int numApAntennas = 8;            // number of AP Antenas
+  int numApRxSpatialStreams = 8;    // number of AP Rx Spatial Streams
+  int numApTxSpatialStreams = 8;    // number of AP Tx Spatial Streams
+  int numStaAntennas = 4;           // number of STA Antenas
+  int numStaRxSpatialStreams = 4;   // number of STA Rx Spatial Streams
+  int numStaTxSpatialStreams = 4;   // number of STA Tx Spatial Streams
   bool enableObssPd = true;         // spatial reuse
+  double obssPdThreshold = -82.0;   // dBm
   bool useUdp = false;              // udp or tcp
   bool useRts = false;              // enable RTS/CTS
   bool useExtendedBlockAck = false; // enable Extended Block Ack
   int guardInterval = 3200;         // guard interval
-  double batteryLevel = 20000;     // initial battery energy
-  int technology = 0;               // technology to be used 802.11ax = 0, 5G = 1;
-  double distance = 10;             // mobility model quadrant size
-  int frequency = 5;                // frequency selection
-  int channelWidth = 20;            // channel number
-  int numRxSpatialStreams = 4;      // number of Rx Spatial Streams
-  int numTxSpatialStreams = 4;      // number of Tx Spatial Streams
-  int numAntennas = 4;              // number of Antenas
+  double batteryLevel = 20000;      // initial battery energy
 
   //default ns3 energy values 802.11n (2.4GHz)
   double TxCurrentA = 0.38;
@@ -194,40 +197,44 @@ int main(int argc, char *argv[])
   int32_t numSta = 1;
 
   CommandLine cmd(__FILE__);
-  cmd.AddValue("verbose", "Tell echo applications to log if true", verbose);
+  cmd.AddValue("verbose", "Activate logging", verbose);
+  cmd.AddValue("runs", "Sets number of runs", runs);
+  cmd.AddValue("seed", "Sets RNG seed number", seed);
   cmd.AddValue("tracing", "Enable pcap tracing", tracing);
-  cmd.AddValue("duration", "Duration of simulation (s)", duration);
-  cmd.AddValue("dataRate", "Data rate (bits/s)", dataRate);
-  cmd.AddValue("enableObssPd", "Enable/disable OBSS_PD", enableObssPd);
-  cmd.AddValue("powSta", "Power of STA (dBm)", powSta);
-  cmd.AddValue("powAp", "Power of AP (dBm)", powAp);
-  cmd.AddValue("ccaEdTrSta", "CCA-ED Threshold of STA (dBm)", ccaEdTrSta);
+  
   cmd.AddValue("ccaEdTrAp", "CCA-ED Threshold of AP (dBm)", ccaEdTrAp);
-  cmd.AddValue("rxSensSta", "RX Sensitivity of STA (dBm)", rxSensSta);
-  cmd.AddValue("rxSensAp", "RX Sensitivity of AP (dBm)", rxSensAp);
+  cmd.AddValue("ccaEdTrSta", "CCA-ED Threshold of STA (dBm)", ccaEdTrSta);
+  cmd.AddValue("channelWidth", "Defines wifi channel number", channelWidth);
+  cmd.AddValue("dataRate", "Data rate (bits/s)", dataRate);
+  cmd.AddValue("distance", "Distance between networks", distance);
+  cmd.AddValue("duration", "Duration of simulation (s)", duration);
+  cmd.AddValue("enableObssPd", "Enable/disable OBSS_PD", enableObssPd);
+  cmd.AddValue("frequency", "Wifi device frequency. 2 - 2.4GHz, 5 - 5GHz, 6 - 6GHz", frequency);
+  cmd.AddValue("guardInterval", "Set guard interval (ns)", guardInterval);
   cmd.AddValue("mcs", "The constant MCS value to transmit HE PPDUs", mcs);
   cmd.AddValue("useUdp", "UDP if set to 1, TCP otherwise", useUdp);
   cmd.AddValue("batteryLevel", "Initial energy level (J)", batteryLevel);
-  cmd.AddValue("numAp", "Number of Wifi Access Points", numAp);
+  cmd.AddValue("numAp", "Number of Wifi APs", numAp);
+  cmd.AddValue("numApAntennas", "Number of AP Antennas", numApAntennas);
+  cmd.AddValue("numApRxSpatialStreams", "Number of AP Rx Spatial Streams", numApRxSpatialStreams);
+  cmd.AddValue("numApTxSpatialStreams", "Number of AP Tx Spatial Streams", numApTxSpatialStreams);
   cmd.AddValue("numSta", "Number of Wifi Stations per AP", numSta);
-  cmd.AddValue("technology", "Select technology to be used. 0 = 802.11ax, 1 = 802.11n, 3 = 5G", technology);
-  cmd.AddValue("distance", "Distance between networks", distance);
+  cmd.AddValue("numStaAntennas", "Number of STA Antennas", numStaAntennas);
+  cmd.AddValue("numStaRxSpatialStreams", "Number of STA Rx Spatial Streams", numStaRxSpatialStreams);
+  cmd.AddValue("numStaTxSpatialStreams", "Number of STA Tx Spatial Streams", numStaTxSpatialStreams);
+  cmd.AddValue("powAp", "Power of AP (dBm)", powAp);
+  cmd.AddValue("powSta", "Power of STA (dBm)", powSta);
+  cmd.AddValue("rxSensAp", "RX Sensitivity of AP (dBm)", rxSensAp);
+  cmd.AddValue("rxSensSta", "RX Sensitivity of STA (dBm)", rxSensSta);
   cmd.AddValue("tcpPayloadSize", "TCP packet size", tcpPayloadSize);
+  cmd.AddValue("technology", "Select technology to be used. 0 = 802.11ax, 1 = 802.11n, 3 = 5G", technology);
   cmd.AddValue("udpPayloadSize", "UDP packet size", udpPayloadSize);
-  cmd.AddValue("frequency", "Wifi device frequency. 2 - 2.4GHz, 5 - 5GHz, 6 - 6GHz", frequency);
-  cmd.AddValue("channelWidth", "Defines wifi channel number", channelWidth);
-  cmd.AddValue("useRts", "Enable/disable RTS/CTS", useRts);
   cmd.AddValue("useExtendedBlockAck", "Enable/disable use of Extended Block Ack", useExtendedBlockAck);
-  cmd.AddValue("guardInterval", "Set guard interval (ns)", guardInterval);
-  cmd.AddValue("numTxSpatialStreams", "Number of Tx Spatial Streams", numTxSpatialStreams);
-  cmd.AddValue("numRxSpatialStreams", "Number of Rx Spatial Streams", numRxSpatialStreams);
-  cmd.AddValue("numAntennas", "Number of Rx Spatial Streams", numAntennas);
+  cmd.AddValue("useRts", "Enable/disable RTS/CTS", useRts);
   // cmd.AddValue("TxCurrentA", "Transmission current (A)", TxCurrentA);
   // cmd.AddValue("RxCurrentA", "Reception current (A)", RxCurrentA);
   // cmd.AddValue("SleepCurrentA", "Sleep current (A)", SleepCurrentA);
   // cmd.AddValue("IdleCurrentA", "Iddle current (A)", IdleCurrentA);
-  cmd.AddValue ("seed", "Sets RNG seed number", seed);
-  cmd.AddValue ("runs", "Sets number of runs", runs);
   cmd.Parse(argc, argv);
 
   ns3::RngSeedManager::SetSeed(seed);
@@ -266,10 +273,6 @@ int main(int argc, char *argv[])
     spectrumPhy.SetChannel(spectrumChannel);
     spectrumPhy.SetErrorRateModel("ns3::YansErrorRateModel");
     spectrumPhy.SetPreambleDetectionModel("ns3::ThresholdPreambleDetectionModel");
-
-    spectrumPhy.Set("Antennas", UintegerValue(numAntennas));
-    spectrumPhy.Set("MaxSupportedTxSpatialStreams", UintegerValue(numTxSpatialStreams));
-    spectrumPhy.Set("MaxSupportedRxSpatialStreams", UintegerValue(numRxSpatialStreams));
 
     WifiHelper wifi;
     //IEEE 802.11ax
@@ -330,6 +333,17 @@ int main(int argc, char *argv[])
         guardInterval = 0;
       }
 
+      if (numApAntennas>4){
+        numApAntennas=4;
+      }
+      if (numApRxSpatialStreams>numApAntennas){
+        numApRxSpatialStreams=numApAntennas;
+      }
+      if (numApTxSpatialStreams>numApAntennas){
+        numApTxSpatialStreams=numApAntennas;
+      }
+
+
       switch (frequency)
       {
       case 2:
@@ -379,6 +393,10 @@ int main(int argc, char *argv[])
       staDevices[i] = NetDeviceContainer();
 
       //STA creation
+      spectrumPhy.Set("Antennas", UintegerValue(numStaAntennas));
+      spectrumPhy.Set("MaxSupportedTxSpatialStreams", UintegerValue(numStaTxSpatialStreams));
+      spectrumPhy.Set("MaxSupportedRxSpatialStreams", UintegerValue(numStaRxSpatialStreams));
+
       spectrumPhy.Set("TxPowerStart", DoubleValue(powSta));
       spectrumPhy.Set("TxPowerEnd", DoubleValue(powSta));
       spectrumPhy.Set("CcaEdThreshold", DoubleValue(ccaEdTrSta));
@@ -392,6 +410,10 @@ int main(int argc, char *argv[])
       }
 
       //AP creation
+      spectrumPhy.Set("Antennas", UintegerValue(numApAntennas));
+      spectrumPhy.Set("MaxSupportedTxSpatialStreams", UintegerValue(numApTxSpatialStreams));
+      spectrumPhy.Set("MaxSupportedRxSpatialStreams", UintegerValue(numApRxSpatialStreams));
+
       spectrumPhy.Set("TxPowerStart", DoubleValue(powAp));
       spectrumPhy.Set("TxPowerEnd", DoubleValue(powAp));
       spectrumPhy.Set("CcaEdThreshold", DoubleValue(ccaEdTrAp));
@@ -516,6 +538,8 @@ int main(int argc, char *argv[])
         onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
         onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
+        //onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
+
         for (int32_t j = 0; j < numSta; j++)
         {
           clientApps = onoff.Install(wifiStaNodes.Get(i * numSta + j));
@@ -531,10 +555,12 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 5000)));
-        onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-        onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize));
-        onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
+        // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
+        // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
+        // onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize));
+        // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
+
+        onoff.SetConstantRate(DataRate(dataRate), tcpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
         {
@@ -691,8 +717,8 @@ int main(int argc, char *argv[])
 
         outFile << i->second.txPackets << ";";
         outFile << i->second.txBytes << ";";
-        outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) << ";";
-        outFile << i->second.txBytes * 8.0 / ((timeStartServerApps - timeStartClientApps) / 1000.0) / 1000.0 / 1000.0 << ";";
+        outFile << i->second.txBytes * 8.0 / duration<< ";";
+        outFile << i->second.txBytes * 8.0 / duration / 1000.0 / 1000.0 << ";";
         outFile << i->second.rxBytes << ";";
         if (i->second.rxPackets > 0)
         {
@@ -731,14 +757,14 @@ int main(int argc, char *argv[])
     for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
-      avg_energy += energyConsumed*1.0/((timeStartServerApps - timeStartClientApps) / 1000.0);
+      avg_energy += energyConsumed*1.0 / duration;
       //NS_ASSERT (energyConsumed <= 0.1);
     }
 
     for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin(); i != stats.end(); ++i)
     {
       
-      avg_throughput += i->second.txBytes*8.0/ ((timeStartServerApps - timeStartClientApps) / 1000.0);
+      avg_throughput += i->second.txBytes*8.0 / duration;
 
     }
 

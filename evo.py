@@ -14,7 +14,7 @@ verbose = True
 
 #parameters
 pop_size = 50
-number_generations = 2
+number_generations = 5
 elite_per = 0.3
 random_per = 0.2
 minimum_throughput = 0.0
@@ -35,7 +35,7 @@ genMin = 0
 genMax = 0
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
-scenario = {0: [2, 4, 10, 100000], 1: [12, 16, 30, 100000], 2: [12, 64, 60, 100000]}
+scenario = {0: [2, 4, 10, 100000], 1: [9, 16, 30, 100000], 2: [16, 64, 60, 100000]}
 
 # [0 - 802.11ax, 1 - 802.11n]
 technology = [0, 1]
