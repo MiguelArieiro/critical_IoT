@@ -5,7 +5,6 @@ import sys
 import copy
 import numpy
 import concurrent.futures
-import time
 from math import sqrt
 
 __author__ = 'Miguel Arieiro'
@@ -13,12 +12,14 @@ __author__ = 'Miguel Arieiro'
 verbose = True
 
 #parameters
-pop_size = 50
+pop_size = 25
 number_generations = 5
+runs_per_scen = 5
 elite_per = 0.3
 random_per = 0.2
 minimum_throughput = 0.0
 mutation_prob = 0.1
+
 
 best_per_gen = list()
 avg_per_gen = list()
@@ -33,6 +34,7 @@ maxFit = 0
 minFit = 0
 genMin = 0
 genMax = 0
+
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
 scenario = {0: [2, 4, 10, 100000], 1: [9, 16, 30, 100000], 2: [16, 64, 60, 100000]}
@@ -55,7 +57,7 @@ mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5, 6, 7, 8,
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1], mcs]
 
-cmd_str ="wifi-spatial-reuse-modified -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
+cmd_str ="wifi-spatial-reuse-modified -runs=1 -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
 def gen_indiv():
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
@@ -94,27 +96,35 @@ def run_indiv (indiv, scen):
     
     return heuristic(energy, throughput, minimum_throughput)
 
-def run_all (population, current_scen):
+def run_all (population, current_scen, all=False):
     
     res=list()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        
-        for i in range (len(population)):
-            if (population[i][-1]==(-1)):
+    if all==True:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for i in range (len(population)):
                 f = executor.submit(run_indiv, population[i], current_scen)
                 res.append(f)
-                #  = run_indiv (population[i], current_scen)
-    count=0
-    for i in range (len(population)):
-        if (population[i][-1]==(-1)):
-            population[i][-1] = res[count].result()
-            count+=1
+        for i in range (len(population)):
+                population[i][-1] = res[i].result()
+
+    else:
+        count=0
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for i in range (len(population)):
+                if (population[i][-1]==(-1)):
+                    f = executor.submit(run_indiv, population[i], current_scen)
+                    res.append(f)
+
+        for i in range (len(population)):
+            if (population[i][-1]==(-1)):
+                population[i][-1] = res[count].result()
+                count+=1
     
     return population
 
 def gen_population(pop_size, current_scen):
     population=[]
-    for i in range (pop_size):
+    for _ in range (pop_size):
         indiv = gen_indiv()
         population.append(indiv)
     
@@ -122,7 +132,6 @@ def gen_population(pop_size, current_scen):
     return population
 
 def gen_new_population(parents, offspring, current_scen):
-    #TODO test
     global elite_per
     global random_per
     size = len(parents)
@@ -133,7 +142,7 @@ def gen_new_population(parents, offspring, current_scen):
     new_population = copy.deepcopy(parents[:comp_elite]) + offspring[:size - comp_elite - comp_random] + gen_population (comp_random, current_scen)
     return new_population
 
-def mutate_prob(original_indiv):    #TODO test
+def mutate_prob(original_indiv):
     global param
     global mutation_prob
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck]
@@ -178,7 +187,7 @@ def mutate_prob(original_indiv):    #TODO test
     
     return indiv
 
-def mutate_one(original_indiv):    #TODO test
+def mutate_one(original_indiv):
     global param
     # indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
     indiv = original_indiv
@@ -236,6 +245,35 @@ def euclidean_distance(v1, v2):
     pairs = list(zip(v1[:-1], v2[:-1]))
     return sqrt(sum([(pair[0] - pair[1])**2 for pair in pairs])) # heuristic = v[-1]
 
+def reset_stats():
+    global best_per_gen
+    global avg_per_gen
+    global diversity
+    global avgBest
+    global stdBest
+    global avgGen
+    global stdGen
+    global maxFit
+    global minFit
+    global genMin
+    global genMax
+    global avgDiversity
+    global stdDiversity
+
+    best_per_gen = list()
+    avg_per_gen = list()
+    diversity = list()
+    avgBest = 0
+    stdBest = 0
+    avgGen = 0
+    stdGen = 0
+    avgDiversity = 0
+    stdDiversity = 0
+    maxFit = 0
+    minFit = 0
+    genMin = 0
+    genMax = 0
+
 def update_stats(population, metric=hamming_distance):
 
     global best_per_gen
@@ -284,7 +322,7 @@ def calculate_stats():
     avgDiversity = numpy.mean(diversity)
     stdDiversity = numpy.std(diversity)
 
-def print_stats():
+def stats_string():
     global best_per_gen
     global avg_per_gen
     global diversity
@@ -297,13 +335,12 @@ def print_stats():
     global genMin
     global genMax
 
-    string = 'max: %f -> gen: %d/%d' % (maxFit, genMax, number_generations)
-    string += '\nmin: %f -> gen: %d/%d' % (minFit, genMin, number_generations)
-    string += '\navgBest: %f +- %f' % (avgBest, stdBest)
-    string += '\navgGen: %f +- %f' % (avgGen, stdGen)
-    string += '\nAvgDiversity: %f +- %f' % (avgDiversity, stdDiversity)
-    print (string)
-    return
+    string = 'max: {} -> gen: {}/{}'.format(maxFit, genMax, number_generations)
+    string += '\nmin: {} -> gen: {}/{}'.format(minFit, genMin, number_generations)
+    string += '\navgBest: {} +- {}'.format(avgBest, stdBest)
+    string += '\navgGen: {} +- {}'.format(avgGen, stdGen)
+    string += '\nAvgDiversity: {} +- {}'.format(avgDiversity, stdDiversity)
+    return string
 
 def main ():
     global pop_size
@@ -312,37 +349,126 @@ def main ():
     global random_per
     global minimum_throughput
     global scenario
+    global runs_per_scen
     metric = hamming_distance
+    mutation_op = mutate_one
 
     current_scen = scenario[0]
+    count=0
+    num_scen=0
+
+    directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
+    filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
+    file_path = directory + filename
+    file = open(file_path, "w")
+    file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
 
     # gen original population
     population = gen_population(pop_size, current_scen) 
 
-    #update_stats(population)
-
     if verbose:
         print(population)
+    file.write(str(population)+'\n')
+
     #TODO add scenarios
     update_stats(population, metric)
 
     for run in range(number_generations):
+        if (count == runs_per_scen):
+            num_scen+=1
+            current_scen=scenario[num_scen]
+            run_all(population,current_scen,all=True)
+            count=0
+            print("Scenario: %d" % num_scen)
         if verbose:
-            print("run: %d" % run)
+            print("Run: %d\t Scenario: %d" % (run, num_scen))
 
-        offspring = mutate_all(population, mutate_one)
+        offspring = mutate_all(population, mutation_op)
         run_all (offspring, current_scen)
         population = gen_new_population (population, offspring, current_scen)
         run_all (population, current_scen)
         update_stats(population, metric)
         if verbose:
             print(population)
+        file.write(str(population)+'\n')
+        count+=1
+
     
     calculate_stats()
-    print_stats()
+    if verbose:
+        print(stats_string())
+
+    file.write(stats_string()+'\n')
+    file.close()
+
+def test():
+    global pop_size
+    global number_generations
+    global elite_per
+    global random_per
+    global minimum_throughput
+    global scenario
+    global runs_per_scen
+    metric = hamming_distance
+    mutation_op=mutate_one
+
+    global mutation_prob
+    for r in range (3):
+        if r == 1:
+            mutation_op = mutate_prob
+        elif r == 2:
+            mutation_prob = 0.3
+        current_scen = scenario[0]
+        count=0
+        num_scen=0
+
+        directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
+        filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
+        file_path = directory + filename
+        file = open(file_path,'w')
+        file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
+
+        # gen original population
+        population = gen_population(pop_size, current_scen) 
+
+        if verbose:
+            print(population)
+        file.write(str(population)+'\n')
+
+        #TODO add scenarios
+        update_stats(population, metric)
+
+        for run in range(number_generations):
+            if (count == runs_per_scen):
+                num_scen+=1
+                current_scen=scenario[num_scen]
+                run_all(population,current_scen,all=True)
+                count=0
+                print("Scenario: %d" % num_scen)
+            if verbose:
+                print("Run: %d\t Scenario: %d" % (run, num_scen))
+
+            offspring = mutate_all(population, mutation_op)
+            run_all (offspring, current_scen)
+            population = gen_new_population (population, offspring, current_scen)
+            run_all (population, current_scen)
+            update_stats(population, metric)
+            if verbose:
+                print(population)
+            file.write(str(population)+'\n')
+            count+=1
+
+        
+        calculate_stats()
+        if verbose:
+            print(stats_string())
+        file.write(stats_string()+'\n')
+
+        file.close()
 
 if __name__ == "__main__":
     main()
+    #test()
 
 
 # pop -> offspring

@@ -164,13 +164,13 @@ int main(int argc, char *argv[])
   uint32_t udpPayloadSize = 40;      // bytes
   int32_t mcs = 11;                 // MCS value
   uint64_t dataRate = 10000;         // bits/s
-  double distance = 25;             // mobility model quadrant size
+  double distance = 25;             // mobility model side = 2 * distance
   int technology = 0;               // technology to be used 802.11ax = 0, 5G = 1;
   int frequency = 5;                // frequency selection
   int channelWidth = 20;            // channel number
-  int numApAntennas = 8;            // number of AP Antenas
-  int numApRxSpatialStreams = 8;    // number of AP Rx Spatial Streams
-  int numApTxSpatialStreams = 8;    // number of AP Tx Spatial Streams
+  int numApAntennas = 4;            // number of AP Antenas
+  int numApRxSpatialStreams = 4;    // number of AP Rx Spatial Streams
+  int numApTxSpatialStreams = 4;    // number of AP Tx Spatial Streams
   int numStaAntennas = 4;           // number of STA Antenas
   int numStaRxSpatialStreams = 4;   // number of STA Rx Spatial Streams
   int numStaTxSpatialStreams = 4;   // number of STA Tx Spatial Streams
@@ -538,7 +538,7 @@ int main(int argc, char *argv[])
         onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
         onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-        //onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
+        // onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
         {
@@ -555,12 +555,12 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 5000)));
-        // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-        // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        // onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize));
-        // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
+        onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
+        onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
+        onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize)); //TODO cange to TCP
+        onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-        onoff.SetConstantRate(DataRate(dataRate), tcpPayloadSize);
+        // onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize); //TODO cange to TCP
 
         for (int32_t j = 0; j < numSta; j++)
         {
@@ -570,9 +570,9 @@ int main(int argc, char *argv[])
     }
 
     serverApps.Start(MilliSeconds(timeStartServerApps));
-    serverApps.Stop(Seconds(duration + 1));
+    serverApps.Stop(Seconds(duration + 3));
     clientApps.Start(MilliSeconds(timeStartClientApps)); //2.0
-    clientApps.Stop(Seconds(duration + 1));
+    clientApps.Stop(Seconds(duration + 2));
 
     /** Energy Model **/
     /***************************************************************************/
@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
     flowMonitor = flowMonHelper.InstallAll();
     //Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
-    Simulator::Stop(Seconds(duration + 1));
+    Simulator::Stop(Seconds(duration + 3));
 
     if (tracing == true)
     {
@@ -642,16 +642,16 @@ int main(int argc, char *argv[])
 
     for (int32_t i = 0; i < numAp; i++)
     {
-      double throughput = static_cast<double>(bytesReceived[numSta + i]) * 8 / 1000 / 1000 / duration;
+      double throughput = static_cast<double>(bytesReceived[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
       if (verbose){
         std::cout << "Throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
       }
     }
 
-    std::string outputDir = "res/";
+    std::string outputDir = "";
     std::string simTag = "wifi_spatial_reuse";
     std::string file = outputDir + "testflow.xml";
-    flowMonitor->SerializeToXmlFile(file.c_str(), true, true);
+    flowMonitor->SerializeToXmlFile(file.c_str(), false, true);
     // Print per-flow statistics
     flowMonitor->CheckForLostPackets();
     Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier>(flowMonHelper.GetClassifier());
@@ -660,7 +660,7 @@ int main(int argc, char *argv[])
     double averageFlowThroughput = 0.0;
     double averageFlowDelay = 0.0;
 
-
+    std::regex server_regex ("^172.*.0.1$");
 
     if (verbose){
 
@@ -673,8 +673,6 @@ int main(int argc, char *argv[])
         std::cerr << "Can't open file " << filename << std::endl;
         return 1;
       }
-
-      std::regex server_regex ("^172.*.0.1$");
 
       outFile.setf(std::ios_base::fixed);
 
@@ -718,16 +716,17 @@ int main(int argc, char *argv[])
         outFile << i->second.txPackets << ";";
         outFile << i->second.txBytes << ";";
         outFile << i->second.txBytes * 8.0 / duration<< ";";
-        outFile << i->second.txBytes * 8.0 / duration / 1000.0 / 1000.0 << ";";
+        outFile << static_cast<double>(i->second.txBytes) * 8 / duration / 1000 / 1000 << ";";
         outFile << i->second.rxBytes << ";";
         if (i->second.rxPackets > 0)
         {
-          double rxDuration = (timeStartServerApps - timeStartClientApps) / 1000.0;
+          // double rxDuration = (timeStartServerApps - timeStartClientApps) / 1000.0;
+          double rxDuration = duration;
           averageFlowThroughput += i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000;
           averageFlowDelay += 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets;
 
           outFile << i->second.rxBytes * 8.0 / rxDuration << ";";
-          outFile << i->second.rxBytes * 8.0 / rxDuration / 1000 / 1000 << ";";
+          outFile << static_cast<double>(i->second.rxBytes) * 8 / rxDuration / 1000 / 1000 << ";";
           outFile << 1000 * i->second.delaySum.GetSeconds() / i->second.rxPackets << ";";
           outFile << 1000 * i->second.jitterSum.GetSeconds() / i->second.rxPackets << ";";
         }
@@ -757,20 +756,25 @@ int main(int argc, char *argv[])
     for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
-      avg_energy += energyConsumed*1.0 / duration;
+      avg_energy += static_cast<double>(energyConsumed) / duration;
       //NS_ASSERT (energyConsumed <= 0.1);
     }
 
     for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin(); i != stats.end(); ++i)
     {
-      
-      avg_throughput += i->second.txBytes*8.0 / duration;
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
 
+      std::stringstream ss;
+      ss<<t.sourceAddress;
+      if (!std::regex_match (ss.str(), server_regex)){
+        avg_throughput += static_cast<double>(i->second.rxBytes);
+      }
+      
     }
 
     Simulator::Destroy();
   }
 
-  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << avg_throughput/(numAp*numSta*runs);
+  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << avg_throughput*8.0/1000000/(duration*numAp*numSta*runs)<<std::endl;
   return 0;
 }
