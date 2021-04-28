@@ -283,29 +283,34 @@ int main(int argc, char *argv[])
       case 2:
         wifi.SetStandard(WIFI_STANDARD_80211ax_2_4GHZ);
         Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (40));
+        
+        TxCurrentA = 0.333;
+        RxCurrentA = 0.200;
+        IdleCurrentA = 0.100;
+        SleepCurrentA = 0.05;
+        CcaBusyCurrentA = 0.100;
+        SwitchingCurrentA = 0.100;
         break;
       case 5:
         wifi.SetStandard(WIFI_STANDARD_80211ax_5GHZ);
 
-        //val aproximados
-        TxCurrentA = 0.52364;
-        RxCurrentA = 0.417229;
-        IdleCurrentA = 0.374283;
-        SleepCurrentA = 0.035211;
-        CcaBusyCurrentA = 0.374283;
-        SwitchingCurrentA = 0.374283;
+        TxCurrentA = 0.333;
+        RxCurrentA = 0.200;
+        IdleCurrentA = 0.100;
+        SleepCurrentA = 0.05;
+        CcaBusyCurrentA = 0.100;
+        SwitchingCurrentA = 0.100;
         break;
       case 6:
         wifi.SetStandard(WIFI_STANDARD_80211ax_6GHZ);
         Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (48));
 
-        //val aproximados
-        TxCurrentA = 0.52364;
-        RxCurrentA = 0.417229;
-        IdleCurrentA = 0.374283;
-        SleepCurrentA = 0.035211;
-        CcaBusyCurrentA = 0.374283;
-        SwitchingCurrentA = 0.374283;
+        TxCurrentA = 0.333;
+        RxCurrentA = 0.200;
+        IdleCurrentA = 0.100;
+        SleepCurrentA = 0.05;
+        CcaBusyCurrentA = 0.100;
+        SwitchingCurrentA = 0.100;
         break;
       default:
         std::cout << "Wrong frequency." << std::endl;
@@ -349,6 +354,13 @@ int main(int argc, char *argv[])
       case 2:
         wifi.SetStandard(WIFI_STANDARD_80211n_2_4GHZ);
         Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (40.046));
+        
+        TxCurrentA = 0.38;
+        RxCurrentA = 0.313;
+        IdleCurrentA = 0.273;
+        SleepCurrentA = 0.033;
+        CcaBusyCurrentA = 0.273;
+        SwitchingCurrentA = 0.273;
         break;
       case 5:
         wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
@@ -533,12 +545,12 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 9)));
-        onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-        onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
-        onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
+        // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
+        // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
+        // onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
+        // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-        // onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
+        onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
         {
@@ -555,12 +567,12 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 5000)));
-        onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-        onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize)); //TODO cange to TCP
-        onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
+        // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
+        // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
+        // onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize)); //TODO cange to TCP
+        // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-        // onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize); //TODO cange to TCP
+        onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
         {
@@ -775,6 +787,6 @@ int main(int argc, char *argv[])
     Simulator::Destroy();
   }
 
-  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << avg_throughput*8.0/1000000/(duration*numAp*numSta*runs)<<std::endl;
+  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << avg_throughput*8.0/1000000/(numAp*numSta*runs)<<std::endl;
   return 0;
 }
