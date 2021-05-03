@@ -9,6 +9,7 @@ from math import sqrt
 
 __author__ = 'Miguel Arieiro'
 
+directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
 verbose = True
 
 #parameters
@@ -57,7 +58,7 @@ mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5, 6, 7, 8,
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1], mcs]
 
-cmd_str ="wifi-spatial-reuse-modified -runs=1 -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
+cmd_str ="wifi-spatial-reuse-modified -runs=3 -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
 def gen_indiv():
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
@@ -357,7 +358,6 @@ def main ():
     count=0
     num_scen=0
 
-    directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
     filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
     file_path = directory + filename
     file = open(file_path, "w")
@@ -413,62 +413,57 @@ def test():
     mutation_op=mutate_one
 
     global mutation_prob
-    for r in range (3):
-        if r == 1:
-            mutation_op = mutate_prob
-        elif r == 2:
-            mutation_prob = 0.3
-        current_scen = scenario[0]
-        count=0
-        num_scen=0
+    for p in [25,50,100]:
+        pop_size = p
+        for r in range (4):
+            if r == 1:
+                mutation_op = mutate_prob
+            elif r == 2:
+                mutation_prob = 0.3
+            else:
+                mutation_prob = 0.5
+            current_scen = scenario[0]
+            count=0
+            num_scen=0
 
-        directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
-        filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
-        file_path = directory + filename
-        file = open(file_path,'w')
-        file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
+            filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
+            file_path = directory + filename
+            file = open(file_path, "w")
+            file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
 
-        # gen original population
-        population = gen_population(pop_size, current_scen) 
+            # gen original population
+            population = gen_population(pop_size, current_scen) 
 
-        if verbose:
-            print(population)
-        file.write(str(population)+'\n')
-
-        #TODO add scenarios
-        update_stats(population, metric)
-
-        for run in range(number_generations):
-            if (count == runs_per_scen):
-                num_scen+=1
-                current_scen=scenario[num_scen]
-                run_all(population,current_scen,all=True)
-                count=0
-                print("Scenario: %d" % num_scen)
-            if verbose:
-                print("Run: %d\t Scenario: %d" % (run, num_scen))
-
-            offspring = mutate_all(population, mutation_op)
-            run_all (offspring, current_scen)
-            population = gen_new_population (population, offspring, current_scen)
-            run_all (population, current_scen)
-            update_stats(population, metric)
             if verbose:
                 print(population)
             file.write(str(population)+'\n')
-            count+=1
 
-        
-        calculate_stats()
-        if verbose:
-            print(stats_string())
-        file.write(stats_string()+'\n')
+            #TODO add scenarios
+            update_stats(population, metric)
 
-        file.close()
+            for run in range(number_generations):
+                if (count == runs_per_scen):
+                    num_scen+=1
+                    current_scen=scenario[num_scen]
+                    run_all(population,current_scen,all=True)
+                    count=0
+                    print("Scenario: %d" % num_scen)
+                if verbose:
+                    print("Run: %d\t Scenario: %d" % (run, num_scen))
+
+                offspring = mutate_all(population, mutation_op)
+                run_all (offspring, current_scen)
+                population = gen_new_population (population, offspring, current_scen)
+                run_all (population, current_scen)
+                update_stats(population, metric)
+                if verbose:
+                    print(population)
+                file.write(str(population)+'\n')
+                count+=1
 
 if __name__ == "__main__":
-    main()
-    #test()
+    #main()
+    test()
 
 
 # pop -> offspring

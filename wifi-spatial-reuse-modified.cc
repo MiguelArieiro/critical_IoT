@@ -103,20 +103,25 @@ using namespace ns3;
 
 bool verbose = false;
 
-std::vector<uint32_t> bytesReceived(MAX_NODES);
+std::vector<uint64_t> bytesReceived(MAX_NODES);
+std::vector<uint64_t> bytesReceivedPS(MAX_NODES);
 
-uint32_t
-ContextToNodeId(std::string context)
-{
-  std::string sub = context.substr(10);
-  uint32_t pos = sub.find("/Device");
-  return atoi(sub.substr(0, pos).c_str());
-}
 
 void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise, uint16_t staId)
 {
-  uint32_t nodeId = ContextToNodeId(context);
+  std::string sub = context.substr(10);
+  uint32_t pos = sub.find("/Device");
+  uint32_t nodeId = atoi(sub.substr(0, pos).c_str());
   bytesReceived[nodeId] += packet->GetSize();
+}
+
+
+void PacketSinkRx (std::string context, Ptr< const Packet > packet, const Address &address)
+{
+  std::string sub = context.substr(10);
+  uint32_t pos = sub.find("/Application");
+  uint32_t nodeId = atoi(sub.substr(0, pos).c_str());
+  bytesReceivedPS[nodeId] += packet->GetSize();
 }
 
 // Trace function for remaining energy at node.
@@ -250,7 +255,7 @@ int main(int argc, char *argv[])
   }
 
   double avg_energy = 0.0;
-  double avg_throughput = 0.0;
+  uint64_t bytesRx = 0;
 
   for(uint32_t r=1; r <= runs; r++){
     SeedManager::SetRun (r);
@@ -510,7 +515,6 @@ int main(int argc, char *argv[])
 
     // Ipv4InterfaceContainer csmaInterfaces;
     // csmaInterfaces = address.Assign(csmaDevices);
-
     address.SetBase("172.1.0.0", "255.255.0.0");
     Ipv4InterfaceContainer apInterfaces;
     for (int32_t i = 0; i < numAp; i++)
@@ -569,10 +573,10 @@ int main(int argc, char *argv[])
         OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 5000)));
         // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
         // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        // onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize)); //TODO cange to TCP
+        // onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize));
         // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
 
-        onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
+        onoff.SetConstantRate(DataRate(dataRate), tcpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
         {
@@ -634,7 +638,8 @@ int main(int argc, char *argv[])
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/WifiRadioEnergyModel", MakeCallback(&TotalEnergy));
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/LiIonEnergySource", MakeCallback(&RemainingEnergy));
 
-    Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
+    if (verbose)Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
+    Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback(&PacketSinkRx));
 
     //Flow monitor logging
     /**************************************************************************/
@@ -652,13 +657,16 @@ int main(int argc, char *argv[])
 
     Simulator::Run();
 
-    for (int32_t i = 0; i < numAp; i++)
-    {
-      double throughput = static_cast<double>(bytesReceived[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
-      if (verbose){
-        std::cout << "Throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
+    if (verbose){
+      for (int32_t i = 0; i < numAp; i++)
+      {
+        double throughput = static_cast<double>(bytesReceived[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
+        double throughputPS = static_cast<double>(bytesReceivedPS[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
+        std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
+        std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughputPS << " Mbit/s" << std::endl;
       }
     }
+
 
     std::string outputDir = "";
     std::string simTag = "wifi_spatial_reuse";
@@ -768,25 +776,18 @@ int main(int argc, char *argv[])
     for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
-      avg_energy += static_cast<double>(energyConsumed) / duration;
+      avg_energy += static_cast<double>(energyConsumed);
       //NS_ASSERT (energyConsumed <= 0.1);
     }
 
-    for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin(); i != stats.end(); ++i)
+    for (int32_t i = 0; i < numAp; i++)
     {
-      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
-
-      std::stringstream ss;
-      ss<<t.sourceAddress;
-      if (!std::regex_match (ss.str(), server_regex)){
-        avg_throughput += static_cast<double>(i->second.rxBytes);
-      }
-      
+      bytesRx += bytesReceivedPS[numSta*numAp + i];
     }
 
     Simulator::Destroy();
   }
-
-  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << avg_throughput*8.0/1000000/(numAp*numSta*runs)<<std::endl;
+  
+  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << bytesRx*8.0/(numAp*numSta*runs) << std::endl;
   return 0;
 }
