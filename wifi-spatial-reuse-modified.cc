@@ -72,9 +72,6 @@
 #include "ns3/wifi-net-device.h"
 #include "ns3/ap-wifi-mac.h"
 #include "ns3/he-configuration.h"
-#include "ns3/packet-socket-helper.h"
-#include "ns3/packet-socket-client.h"
-#include "ns3/packet-socket-server.h"
 #include "ns3/wifi-radio-energy-model-helper.h"
 #include "ns3/energy-source-container.h"
 #include "ns3/li-ion-energy-source-helper.h"
@@ -104,8 +101,6 @@ using namespace ns3;
 bool verbose = false;
 
 std::vector<uint64_t> bytesReceived(MAX_NODES);
-std::vector<uint64_t> bytesReceivedPS(MAX_NODES);
-
 
 void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t channelFreqMhz, WifiTxVector txVector, MpduInfo aMpdu, SignalNoiseDbm signalNoise, uint16_t staId)
 {
@@ -115,6 +110,7 @@ void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t chan
   bytesReceived[nodeId] += packet->GetSize();
 }
 
+std::vector<uint64_t> bytesReceivedPS(MAX_NODES);
 
 void PacketSinkRx (std::string context, Ptr< const Packet > packet, const Address &address)
 {
@@ -134,7 +130,7 @@ void RemainingEnergy(std::string context, double oldValue, double remainingEnerg
     NS_LOG_UNCOND(Simulator::Now().GetSeconds()
                   << "s " << nodeId << " Current remaining energy = " << remainingEnergy << "J");
   }
-  //fprintf(energyRemainingFile[nodeId], "%lf,%lf\n", Simulator::Now().GetSeconds(), remainingEnergy);
+  //fprintf("%lf,%lf\n", Simulator::Now().GetSeconds(), remainingEnergy);
 }
 
 // Trace function for total energy consumption at node.
@@ -167,7 +163,7 @@ int main(int argc, char *argv[])
   double rxSensSta = -92;           // dBm
   uint32_t tcpPayloadSize = 60;      // bytes
   uint32_t udpPayloadSize = 40;      // bytes
-  int32_t mcs = 11;                 // MCS value
+  int32_t mcs = 9;                 // MCS value
   uint64_t dataRate = 10000;         // bits/s
   double distance = 25;             // mobility model side = 2 * distance
   int technology = 0;               // technology to be used 802.11ax = 0, 5G = 1;
@@ -185,7 +181,7 @@ int main(int argc, char *argv[])
   bool useRts = false;              // enable RTS/CTS
   bool useExtendedBlockAck = false; // enable Extended Block Ack
   int guardInterval = 3200;         // guard interval
-  double batteryLevel = 20000;      // initial battery energy
+  double batteryLevel = 2000000;      // initial battery energy
 
   //default ns3 energy values 802.11n (2.4GHz)
   double TxCurrentA = 0.38;
@@ -453,8 +449,9 @@ int main(int argc, char *argv[])
 
     if (technology == 0)
     { //802.11ax
-      Config::Set("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/HeConfiguration/GuardInterval", TimeValue(NanoSeconds(guardInterval)));
+      
       Config::Set("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/HeConfiguration/MpduBufferSize", UintegerValue(useExtendedBlockAck ? 256 : 64));
+      Config::Set("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/HeConfiguration/GuardInterval", TimeValue(NanoSeconds(guardInterval)));;
     }
     else
     { //802.11n
@@ -549,11 +546,6 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         OnOffHelper onoff("ns3::UdpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 9)));
-        // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-        // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        // onoff.SetAttribute("PacketSize", UintegerValue(udpPayloadSize));
-        // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
-
         onoff.SetConstantRate(DataRate(dataRate), udpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
@@ -571,11 +563,6 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         OnOffHelper onoff("ns3::TcpSocketFactory", Address(InetSocketAddress(apInterfaces.GetAddress(i), 5000)));
-        // onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=1]"));
-        // onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0]"));
-        // onoff.SetAttribute("PacketSize", UintegerValue(tcpPayloadSize));
-        // onoff.SetAttribute("DataRate", DataRateValue(dataRate)); //bit/s
-
         onoff.SetConstantRate(DataRate(dataRate), tcpPayloadSize);
 
         for (int32_t j = 0; j < numSta; j++)
@@ -585,7 +572,7 @@ int main(int argc, char *argv[])
       }
     }
 
-    serverApps.Start(MilliSeconds(timeStartServerApps));
+    serverApps.Start(MilliSeconds(timeStartServerApps)); 
     serverApps.Stop(Seconds(duration + 3));
     clientApps.Start(MilliSeconds(timeStartClientApps)); //2.0
     clientApps.Stop(Seconds(duration + 2));
@@ -593,11 +580,11 @@ int main(int argc, char *argv[])
     /** Energy Model **/
     /***************************************************************************/
     /* energy source */
-    LiIonEnergySourceHelper basicSourceHelper;
+    LiIonEnergySourceHelper liIonSourceHelper;
     // configure energy source
-    basicSourceHelper.Set("LiIonEnergySourceInitialEnergyJ", DoubleValue(batteryLevel));
+    liIonSourceHelper.Set("LiIonEnergySourceInitialEnergyJ", DoubleValue(batteryLevel));
     // install source
-    EnergySourceContainer sources = basicSourceHelper.Install(wifiStaNodes);
+    EnergySourceContainer sources = liIonSourceHelper.Install(wifiStaNodes);
     /* device energy model */
     WifiRadioEnergyModelHelper radioEnergyHelper;
     // configure radio energy model
@@ -622,23 +609,27 @@ int main(int argc, char *argv[])
     /** connect trace sources **/
     /***************************************************************************/
     //energy source
-    for (int32_t i = 0; i < numAp * numSta; i++)
-    {
-      Ptr<LiIonEnergySource> basicSourcePtr = DynamicCast<LiIonEnergySource>(sources.Get(i));
+    
+    if (tracing && verbose){
+      for (int32_t i = 0; i < numAp * numSta; i++)
+      {
+        Ptr<LiIonEnergySource> basicSourcePtr = DynamicCast<LiIonEnergySource>(sources.Get(i));
 
-      basicSourcePtr->TraceConnect("RemainingEnergy", std::to_string(i), MakeCallback(&RemainingEnergy));
+        basicSourcePtr->TraceConnect("RemainingEnergy", std::to_string(i), MakeCallback(&RemainingEnergy));
 
-      // device energy model
-      Ptr<DeviceEnergyModel> basicRadioModelPtr = basicSourcePtr->FindDeviceEnergyModels("ns3::WifiRadioEnergyModel").Get(0);
-      NS_ASSERT(basicRadioModelPtr != NULL);
+        // device energy model
+        Ptr<DeviceEnergyModel> basicRadioModelPtr = basicSourcePtr->FindDeviceEnergyModels("ns3::WifiRadioEnergyModel").Get(0);
+        NS_ASSERT(basicRadioModelPtr != NULL);
 
-      basicRadioModelPtr->TraceConnect("TotalEnergyConsumption", std::to_string(i), MakeCallback(&TotalEnergy));
+        basicRadioModelPtr->TraceConnect("TotalEnergyConsumption", std::to_string(i), MakeCallback(&TotalEnergy));
+      }
     }
+
 
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/WifiRadioEnergyModel", MakeCallback(&TotalEnergy));
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/LiIonEnergySource", MakeCallback(&RemainingEnergy));
 
-    if (verbose)Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
+    if (verbose) Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
     Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback(&PacketSinkRx));
 
     //Flow monitor logging
@@ -663,7 +654,7 @@ int main(int argc, char *argv[])
         double throughput = static_cast<double>(bytesReceived[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
         double throughputPS = static_cast<double>(bytesReceivedPS[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
         std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
-        std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughputPS << " Mbit/s" << std::endl;
+        std::cout << "Application throughput for BSS " << i + 1 << ": " << throughputPS << " Mbit/s" << std::endl;
       }
     }
 
@@ -772,12 +763,11 @@ int main(int argc, char *argv[])
     }
     //End Simulator
 
-
+    //get total energy consumed
     for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
       avg_energy += static_cast<double>(energyConsumed);
-      //NS_ASSERT (energyConsumed <= 0.1);
     }
 
     for (int32_t i = 0; i < numAp; i++)
@@ -788,6 +778,6 @@ int main(int argc, char *argv[])
     Simulator::Destroy();
   }
   
-  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << bytesRx*8.0/(numAp*numSta*runs) << std::endl;
+  std::cout << avg_energy/(numAp*numSta*runs)/duration << "\t" << bytesRx*8.0/(numAp*numSta*runs)/duration << std::endl;
   return 0;
 }

@@ -9,7 +9,8 @@ from math import sqrt
 
 __author__ = 'Miguel Arieiro'
 
-directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
+#directory = "/home/ubuntu/critical_iot/tests/"
+directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/VM2/"
 verbose = True
 
 #parameters
@@ -53,7 +54,7 @@ channelWidth = {2 : [20,40], 5 : [20, 40, 80, 160], 6 : [20, 40, 80, 160]}
 guardInterval = {0: [800, 1600, 3200], 1: [0, 1]}
 
 # {technology: [mcs#]}
-mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]}
+mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]}
 
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1], mcs]
@@ -232,9 +233,24 @@ def mutate_one(original_indiv):
     
     return indiv
 
+def rank_pop (population, n):
+    pop = copy.deepcopy(population)
+    pop.sort(reverse=True, key=lambda x: x[-1])
+    probs = [(2*i)/(pop_size*(pop_size + 1)) for i in range (1, pop_size + 1)]
+    mate_pool = []
+    for i in range (n):
+        value = random.uniform(0,1)
+        index = 0
+        total = probs [index]
+        while total < value:
+            index += 1
+            total += probs[index]
+        mate_pool.append(population[index])
+    return mate_pool
+
 def mutate_all(population, mutation_op=mutate_one):
     offspring=[]
-    for i in range(len(population)):
+    for i in range(rank_pop(population, pop_size)):
         offspring.append(mutation_op(population[i]))
     
     return offspring
@@ -354,6 +370,7 @@ def main ():
     metric = hamming_distance
     mutation_op = mutate_one
 
+    reset_stats()
     current_scen = scenario[0]
     count=0
     num_scen=0
@@ -410,12 +427,14 @@ def test():
     global scenario
     global runs_per_scen
     metric = hamming_distance
-    mutation_op=mutate_one
+    
 
     global mutation_prob
-    for p in [25,50,100]:
+    for p in [25]:
         pop_size = p
-        for r in range (4):
+        mutation_op=mutate_one
+        reset_stats()
+        for r in range (1,2):
             if r == 1:
                 mutation_op = mutate_prob
             elif r == 2:
@@ -426,7 +445,7 @@ def test():
             count=0
             num_scen=0
 
-            filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
+            filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__, mutation_prob)
             file_path = directory + filename
             file = open(file_path, "w")
             file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
@@ -460,6 +479,13 @@ def test():
                     print(population)
                 file.write(str(population)+'\n')
                 count+=1
+                calculate_stats()
+
+            if verbose:
+                print(stats_string())
+
+            file.write(stats_string()+'\n')
+            file.close()
 
 if __name__ == "__main__":
     #main()
