@@ -9,12 +9,11 @@ from math import sqrt
 
 __author__ = 'Miguel Arieiro'
 
-#directory = "/home/ubuntu/critical_iot/tests/"
-directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/"
+directory = "/home/ubuntu/critical_iot/tests/"
 verbose = True
 
 #parameters
-pop_size = 5
+pop_size = 25
 number_generations = 5
 runs_per_scen = 5
 elite_per = 0.3
@@ -59,7 +58,7 @@ mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5, 6, 7, 8,
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1], mcs]
 
-cmd_str ="wifi-spatial-reuse-modified -runs=1 -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
+cmd_str ="wifi-spatial-reuse-modified -runs=3 -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
 def gen_indiv():
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
@@ -233,31 +232,10 @@ def mutate_one(original_indiv):
     
     return indiv
 
-def rank_pop (population, n):
-    pop = copy.deepcopy(population)
-    pop.sort(reverse=True, key=lambda x: x[-1])
-    probs = [(2*i)/(pop_size*(pop_size + 1)) for i in range (1, pop_size + 1)]
-    mate_pool = []
-    for _ in range (n):
-        value = random.uniform(0,1)
-        index = 0
-        total = probs [index]
-        while total < value:
-            index += 1
-            total += probs[index]
-        mate_pool.append(population[index])
-    return mate_pool
-
 def mutate_all(population, mutation_op=mutate_one):
-    global random_per
-    global elite_per
-    offspring=[]
-
-    size=len(population)
-    n=size-int(size * elite_per)-int(size * random_per)
-
-    for i in rank_pop(population, n):
-        offspring.append(mutation_op(i))
+    offspring=copy.deepcopy(population)
+    for i in range(len(offspring)):
+        mutation_op(offspring[i])
     
     return offspring
 
@@ -376,12 +354,11 @@ def main ():
     metric = hamming_distance
     mutation_op = mutate_one
 
-    reset_stats()
     current_scen = scenario[0]
     count=0
     num_scen=0
 
-    filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__, mutation_prob)
+    filename = "%d_%d_%d_%.2f_%.2f_%s.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__)
     file_path = directory + filename
     file = open(file_path, "w")
     file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
@@ -439,8 +416,7 @@ def test():
     for p in [25]:
         pop_size = p
         mutation_op=mutate_one
-        reset_stats()
-        for r in range (1,2):
+        for r in range (4):
             if r == 1:
                 mutation_op = mutate_prob
             elif r == 2:
@@ -494,8 +470,8 @@ def test():
             file.close()
 
 if __name__ == "__main__":
-    main()
-    #test()
+    #main()
+    test()
 
 
 # pop -> offspring

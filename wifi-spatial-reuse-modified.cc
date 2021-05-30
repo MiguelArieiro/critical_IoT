@@ -90,6 +90,7 @@
 
 #include "ns3/on-off-helper.h"
 #include "ns3/packet-sink-helper.h"
+#include "ns3/packet-sink.h"
 
 #include "ns3/rng-seed-manager.h"
 
@@ -110,15 +111,15 @@ void MonitorSniffRx(std::string context, Ptr<const Packet> packet, uint16_t chan
   bytesReceived[nodeId] += packet->GetSize();
 }
 
-std::vector<uint64_t> bytesReceivedPS(MAX_NODES);
+// std::vector<uint64_t> bytesReceivedPS(MAX_NODES);
 
-void PacketSinkRx (std::string context, Ptr< const Packet > packet, const Address &address)
-{
-  std::string sub = context.substr(10);
-  uint32_t pos = sub.find("/Application");
-  uint32_t nodeId = atoi(sub.substr(0, pos).c_str());
-  bytesReceivedPS[nodeId] += packet->GetSize();
-}
+// void PacketSinkRx (std::string context, Ptr< const Packet > packet, const Address &address)
+// {
+//   std::string sub = context.substr(10);
+//   uint32_t pos = sub.find("/Application");
+//   uint32_t nodeId = atoi(sub.substr(0, pos).c_str());
+//   bytesReceivedPS[nodeId] += packet->GetSize();
+// }
 
 // Trace function for remaining energy at node.
 void RemainingEnergy(std::string context, double oldValue, double remainingEnergy)
@@ -444,9 +445,8 @@ int main(int argc, char *argv[])
       }
     }
 
-    // Set channel width, guard interval and MPDU buffer size
-    //Config::Set("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/Phy/ChannelWidth", UintegerValue(channelWidth));
-
+    //Set guard interval and MPDU buffer size
+  
     if (technology == 0)
     { //802.11ax
       
@@ -628,9 +628,10 @@ int main(int argc, char *argv[])
 
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/WifiRadioEnergyModel", MakeCallback(&TotalEnergy));
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/LiIonEnergySource", MakeCallback(&RemainingEnergy));
+    //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback(&PacketSinkRx));
 
     if (verbose) Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
-    Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback(&PacketSinkRx));
+    
 
     //Flow monitor logging
     /**************************************************************************/
@@ -652,9 +653,7 @@ int main(int argc, char *argv[])
       for (int32_t i = 0; i < numAp; i++)
       {
         double throughput = static_cast<double>(bytesReceived[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
-        double throughputPS = static_cast<double>(bytesReceivedPS[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
         std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
-        std::cout << "Application throughput for BSS " << i + 1 << ": " << throughputPS << " Mbit/s" << std::endl;
       }
     }
 
@@ -767,17 +766,21 @@ int main(int argc, char *argv[])
     for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
-      avg_energy += static_cast<double>(energyConsumed);
+      avg_energy += static_cast<double>(energyConsumed)/duration;
     }
 
     for (int32_t i = 0; i < numAp; i++)
-    {
-      bytesRx += bytesReceivedPS[numSta*numAp + i];
+    {   
+      bytesRx = static_cast<double>(DynamicCast<PacketSink>(serverApps.Get(i)) -> GetTotalRx())/duration;
     }
 
     Simulator::Destroy();
+
+
   }
-  
-  std::cout << avg_energy/(numAp*numSta*runs)/duration << "\t" << bytesRx*8.0/(numAp*numSta*runs)/duration << std::endl;
+
+
+
+  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << bytesRx*8.0/(numAp*numSta*runs) << std::endl;
   return 0;
 }
