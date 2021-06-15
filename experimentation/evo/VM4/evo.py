@@ -14,13 +14,10 @@ directory = "/home/ubuntu/critical_iot/tests/"
 
 verbose = True
 
-seed = 1
-
-
 #parameters
 pop_size = 25
-number_generations = 25
-runs_per_scen = 100
+number_generations = 10
+runs_per_scen = 10
 elite_per = 0.3
 random_per = 0.2
 minimum_throughput = 0.0
@@ -44,7 +41,7 @@ genMax = 0
 #-erro com 16/64
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
-scenario = {0: [4, 4, 10, 100000], 1: [9, 16, 30, 100000], 2: [16, 64, 60, 100000]}
+scenario = {0: [2, 4, 10, 100000], 1: [9, 16, 30, 100000], 2: [16, 64, 60, 100000]}
 
 # [0 - 802.11ax, 1 - 802.11n]
 technology = [0, 1]
@@ -387,11 +384,8 @@ def main ():
     global minimum_throughput
     global scenario
     global runs_per_scen
-    global seed
     metric = hamming_distance
     mutation_op = mutate_prob
-    
-    random.seed(seed)
 
     reset_stats()
     current_scen = scenario[0]
@@ -449,10 +443,7 @@ def test():
     global minimum_throughput
     global scenario
     global runs_per_scen
-    global seed
     metric = hamming_distance
-
-    random.seed(seed)
     
 
     global mutation_prob
@@ -516,5 +507,5 @@ def test():
             file.close()
 
 if __name__ == "__main__":
-    main()
-    #test()
+    #main()
+    test()

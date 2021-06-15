@@ -1,0 +1,29 @@
+*********************************Errror*********************************:
+wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=20 -useUdp=0 -useRts=1 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=1
+CompletedProcess(args=['./waf', '--run-no-build', 'wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=20 -useUdp=0 -useRts=1 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=1'], returncode=1, stdout="Waf: Entering directory `/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build'\n", stderr='Command [\'/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build/scratch/wifi-spatial-reuse-modified\', \'-runs=3\', \'-numAp=2\', \'-numSta=4\', \'-duration=10\', \'-dataRate=100000\', \'-technology=0\', \'-frequency=5\', \'-channelWidth=20\', \'-useUdp=0\', \'-useRts=1\', \'-guardInterval=3200\', \'-enableObssPd=1\', \'-useExtendedBlockAck=0\', \'-mcs=1\'] terminated with signal SIGSEGV. Run it under a debugger to get more information (./waf --run <program> --gdb").\n')
+energy: 1.0	throughput: 1.0
+
+*********************************Errror*********************************:
+wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=0 -frequency=6 -channelWidth=40 -useUdp=0 -useRts=1 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=1
+CompletedProcess(args=['./waf', '--run-no-build', 'wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=0 -frequency=6 -channelWidth=40 -useUdp=0 -useRts=1 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=1'], returncode=1, stdout="Waf: Entering directory `/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build'\n", stderr='Command [\'/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build/scratch/wifi-spatial-reuse-modified\', \'-runs=3\', \'-numAp=2\', \'-numSta=4\', \'-duration=10\', \'-dataRate=100000\', \'-technology=0\', \'-frequency=6\', \'-channelWidth=40\', \'-useUdp=0\', \'-useRts=1\', \'-guardInterval=3200\', \'-enableObssPd=1\', \'-useExtendedBlockAck=0\', \'-mcs=1\'] terminated with signal SIGSEGV. Run it under a debugger to get more information (./waf --run <program> --gdb").\n')
+energy: 1.0	throughput: 1.0
+
+*********************************Errror*********************************:
+wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=160 -useUdp=0 -useRts=1 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=1
+CompletedProcess(args=['./waf', '--run-no-build', 'wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=160 -useUdp=0 -useRts=1 -guardInterval=3200 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=1'], returncode=1, stdout="Waf: Entering directory `/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build'\n", stderr='Command [\'/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build/scratch/wifi-spatial-reuse-modified\', \'-runs=3\', \'-numAp=2\', \'-numSta=4\', \'-duration=10\', \'-dataRate=100000\', \'-technology=0\', \'-frequency=5\', \'-channelWidth=160\', \'-useUdp=0\', \'-useRts=1\', \'-guardInterval=3200\', \'-enableObssPd=1\', \'-useExtendedBlockAck=0\', \'-mcs=1\'] terminated with signal SIGSEGV. Run it under a debugger to get more information (./waf --run <program> --gdb").\n')
+energy: 1.0	throughput: 1.0
+
+
+
+
+mcs 23
+
+*********************************Errror*********************************:
+wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=1 -frequency=5 -channelWidth=160 -useUdp=1 -useRts=0 -guardInterval=0 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=23
+CompletedProcess(args=['./waf', '--run-no-build', 'wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=1 -frequency=5 -channelWidth=160 -useUdp=1 -useRts=0 -guardInterval=0 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=23'], returncode=1, stdout="Waf: Entering directory `/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build'\n", stderr='Command [\'/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build/scratch/wifi-spatial-reuse-modified\', \'-runs=3\', \'-numAp=2\', \'-numSta=4\', \'-duration=10\', \'-dataRate=100000\', \'-technology=1\', \'-frequency=5\', \'-channelWidth=160\', \'-useUdp=1\', \'-useRts=0\', \'-guardInterval=0\', \'-enableObssPd=1\', \'-useExtendedBlockAck=0\', \'-mcs=23\'] terminated with signal SIGSEGV. Run it under a debugger to get more information (./waf --run <program> --gdb").\n')
+energy: 1.0	throughput: 1.0
+
+*********************************Errror*********************************:
+wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=1 -frequency=5 -channelWidth=40 -useUdp=1 -useRts=0 -guardInterval=0 -enableObssPd=0 -useExtendedBlockAck=0 -mcs=23
+CompletedProcess(args=['./waf', '--run-no-build', 'wifi-spatial-reuse-modified -runs=3 -numAp=2 -numSta=4 -duration=10 -dataRate=100000 -technology=1 -frequency=5 -channelWidth=40 -useUdp=1 -useRts=0 -guardInterval=0 -enableObssPd=0 -useExtendedBlockAck=0 -mcs=23'], returncode=1, stdout="Waf: Entering directory `/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build'\n", stderr='Command [\'/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33/build/scratch/wifi-spatial-reuse-modified\', \'-runs=3\', \'-numAp=2\', \'-numSta=4\', \'-duration=10\', \'-dataRate=100000\', \'-technology=1\', \'-frequency=5\', \'-channelWidth=40\', \'-useUdp=1\', \'-useRts=0\', \'-guardInterval=0\', \'-enableObssPd=0\', \'-useExtendedBlockAck=0\', \'-mcs=23\'] terminated with signal SIGSEGV. Run it under a debugger to get more information (./waf --run <program> --gdb").\n')
+energy: 1.0	throughput: 1.0

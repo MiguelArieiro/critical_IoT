@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
   // double d3 = 150.0; // meters
   uint32_t seed = 1;
   uint32_t runs = 3;
-  bool tracing = true;
+  bool tracing = false;
   double duration = 10.0;           // seconds
   double powAp = 21.0;              // dBm
   double powSta = 10.0;             // dBm
@@ -195,8 +195,8 @@ int main(int argc, char *argv[])
   uint32_t timeStartServerApps = 1000;
   uint32_t timeStartClientApps = 2000;
 
-  int32_t numAp = 2;
-  int32_t numSta = 1;
+  int32_t numAp = 4;
+  int32_t numSta = 4;
 
   CommandLine cmd(__FILE__);
   cmd.AddValue("verbose", "Activate logging", verbose);
@@ -703,12 +703,6 @@ int main(int argc, char *argv[])
         outFile << i->first << ";";
         outFile << t.sourceAddress << ";" << t.sourcePort << ";" << t.destinationAddress << ";" << t.destinationPort << ";";
         outFile << protoStream.str() << ";";
-        // if (t.sourcePort <= VideoPortServer){
-        //   //Service , direction
-        //   outFile << get_service(t.sourcePort) << ";";
-        // }else{
-        //     outFile << get_service(t.destinationPort) << ";";
-        // }
 
         std::stringstream ss;
         ss<<t.sourceAddress;
@@ -771,7 +765,7 @@ int main(int argc, char *argv[])
 
     for (int32_t i = 0; i < numAp; i++)
     {   
-      bytesRx = static_cast<double>(DynamicCast<PacketSink>(serverApps.Get(i)) -> GetTotalRx())/duration;
+      bytesRx += static_cast<double>(DynamicCast<PacketSink>(serverApps.Get(i)) -> GetTotalRx())/duration;
     }
 
     Simulator::Destroy();
