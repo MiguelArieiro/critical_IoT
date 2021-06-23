@@ -44,7 +44,7 @@ genMax = 0
 #-erro com 16/64
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
-scenario = {0: [4, 4, 10, 100000], 1: [9, 16, 30, 100000], 2: [16, 64, 60, 100000]}
+scenario = {0: [4, 4, 10, 100000], 1: [9, 16, 10, 100000], 2: [16, 64, 60, 100000]}
 
 # [0 - 802.11ax, 1 - 802.11n]
 technology = [0, 1]
@@ -314,19 +314,20 @@ def update_stats(population, metric=hamming_distance):
     global best_per_gen
     global avg_per_gen
     global diversity
-    global pop_size
+    p_size = len(population)
 
     population.sort(key=lambda x: x[-1])
     best_per_gen.append(population[0][-1])
-    avg_per_gen.append(sum([f[-1] for f in population]) / len(population))
+    avg_per_gen.append(sum([f[-1] for f in population]) / p_size)
     
-    div=0
-    for i in range (len(population)):
-        for j in range (i+1, pop_size):
+    count=0
+    for i in range (p_size):
+        for j in range (i+1, p_size):
             distance = metric(population[i], population[j])
             if distance !=0:
-                div+=1
+                count+=1
     
+    div = (2.0*count)/(p_size*(p_size-1))
     diversity.append(div)
     
 
@@ -389,7 +390,7 @@ def main ():
     global runs_per_scen
     global seed
     metric = hamming_distance
-    mutation_op = mutate_prob
+    mutation_op = mutate_one
     
     random.seed(seed)
 
@@ -401,7 +402,7 @@ def main ():
     filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__, mutation_prob)
     file_path = directory + filename
     file = open(file_path, "w")
-    file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
+    file.write("[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]\n")
 
     # gen original population
     population = gen_population(pop_size, current_scen) 

@@ -1,66 +1,3 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2019 University of Washington
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * Author: Sébastien Deronne <sebastien.deronne@gmail.com>
- */
-
-//
-//  This example program can be used to experiment with spatial
-//  reuse mechanisms of 802.11ax.
-//
-//  The geometry is as follows:
-//
-//                STA1          STA1
-//                 |              |
-//              d1 |              |d2
-//                 |       d3     |
-//                AP1 -----------AP2
-
-//
-//  STA1 and AP1 are in one BSS (with color set to 1), while STA2 and AP2 are in
-//  another BSS (with color set to 2). The distances are configurable (d1 through d3).
-//
-//  STA1 is continously transmitting data to AP1, while STA2 is continuously sending data to AP2.
-//  Each STA has configurable traffic loads (inter packet interval and packet size).
-//  It is also possible to configure TX power per node as well as their CCA-ED tresholds.
-//  OBSS_PD spatial reuse feature can be enabled (default) or disabled, and the OBSS_PD
-//  threshold can be set as well (default: -72 dBm).
-//  A simple Friis path loss model is used and a constant PHY rate is considered.
-//
-//  In general, the program can be configured at run-time by passing command-line arguments.
-//  The following command will display all of the available run-time help options:
-//    ./waf --run "wifi-spatial-reuse --help"
-//
-//  By default, the script shows the benefit of the OBSS_PD spatial reuse script:
-//    ./waf --run wifi-spatial-reuse
-//    Throughput for BSS 1: 6.6468 Mbit/s
-//    Throughput for BSS 2: 6.6672 Mbit/s
-//
-// If one disables the OBSS_PD feature, a lower throughput is obtained per BSS:
-//    ./waf --run "wifi-spatial-reuse --enableObssPd=0"
-//    Throughput for BSS 1: 5.8692 Mbit/s
-//    Throughput for BSS 2: 5.9364 Mbit/
-//
-// This difference between those results is because OBSS_PD spatial
-// enables to ignore transmissions from another BSS when the received power
-// is below the configured threshold, and therefore either defer during ongoing
-// transmission or transmit at the same time.
-//
-
 #include "ns3/command-line.h"
 #include "ns3/config.h"
 #include "ns3/string.h"
@@ -99,7 +36,7 @@ using namespace ns3;
 
 #define MAX_NODES 2048
 
-bool verbose = false;
+bool verbose = true;
 
 std::vector<uint64_t> bytesReceived(MAX_NODES);
 
@@ -195,7 +132,7 @@ int main(int argc, char *argv[])
   uint32_t timeStartServerApps = 1000;
   uint32_t timeStartClientApps = 2000;
 
-  int32_t numAp = 4;
+  int32_t numAp = 2;
   int32_t numSta = 4;
 
   CommandLine cmd(__FILE__);
@@ -478,7 +415,7 @@ int main(int argc, char *argv[])
                                       "GridWidth", UintegerValue(sta_edge_size),
                                       "LayoutType", StringValue("RowFirst"));
 
-        mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+        mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel");
         for (int32_t j = 0; j < numSta; j++)
         {
           //std::cout << "x:" << x << " y:" << y << " distance:" << distance << "\n";
@@ -630,7 +567,7 @@ int main(int argc, char *argv[])
     //Config::Connect("/NodeList/*/DeviceList/*/Phy/LiIonEnergySource", MakeCallback(&RemainingEnergy));
     //Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback(&PacketSinkRx));
 
-    if (verbose) Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
+    if (tracing) Config::Connect("/NodeList/*/DeviceList/*/Phy/MonitorSnifferRx", MakeCallback(&MonitorSniffRx));
     
 
     //Flow monitor logging
@@ -649,14 +586,13 @@ int main(int argc, char *argv[])
 
     Simulator::Run();
 
-    if (verbose){
+    if (tracing){
       for (int32_t i = 0; i < numAp; i++)
       {
         double throughput = static_cast<double>(bytesReceived[numSta*numAp + i]) * 8 / 1000 / 1000 / duration;
         std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughput << " Mbit/s" << std::endl;
       }
     }
-
 
     std::string outputDir = "";
     std::string simTag = "wifi_spatial_reuse";
@@ -761,18 +697,18 @@ int main(int argc, char *argv[])
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
       avg_energy += static_cast<double>(energyConsumed)/duration;
+      std::cout<<avg_energy<<std::endl;
     }
 
     for (int32_t i = 0; i < numAp; i++)
     {   
       bytesRx += static_cast<double>(DynamicCast<PacketSink>(serverApps.Get(i)) -> GetTotalRx())/duration;
+      std::cout<<bytesRx<<std::endl;
     }
 
     Simulator::Destroy();
 
-
   }
-
 
 
   std::cout << avg_energy/(numAp*numSta*runs) << "\t" << bytesRx*8.0/(numAp*numSta*runs) << std::endl;
