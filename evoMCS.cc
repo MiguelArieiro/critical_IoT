@@ -31,6 +31,8 @@
 
 #include "ns3/rng-seed-manager.h"
 
+#include "ns3/rectangle.h"
+
 
 using namespace ns3;
 
@@ -92,6 +94,7 @@ int main(int argc, char *argv[])
   uint32_t seed = 1;
   uint32_t runs = 3;
   bool tracing = false;
+  bool walk = false;
   double duration = 10.0;           // seconds
   double powAp = 21.0;              // dBm
   double powSta = 10.0;             // dBm
@@ -170,6 +173,7 @@ int main(int argc, char *argv[])
   cmd.AddValue("udpPayloadSize", "UDP packet size", udpPayloadSize);
   cmd.AddValue("useExtendedBlockAck", "Enable/disable use of Extended Block Ack", useExtendedBlockAck);
   cmd.AddValue("useRts", "Enable/disable RTS/CTS", useRts);
+  cmd.AddValue("walk", "Enable STA mobility", walk);
   // cmd.AddValue("TxCurrentA", "Transmission current (A)", TxCurrentA);
   // cmd.AddValue("RxCurrentA", "Reception current (A)", RxCurrentA);
   // cmd.AddValue("SleepCurrentA", "Sleep current (A)", SleepCurrentA);
@@ -415,7 +419,12 @@ int main(int argc, char *argv[])
                                       "GridWidth", UintegerValue(sta_edge_size),
                                       "LayoutType", StringValue("RowFirst"));
 
-        mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel");
+        if (walk){
+          mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel","Bounds", RectangleValue(Rectangle(((x - 1) * distance), ((x + 1) * distance), ((y - 1) * distance), ((y + 1) * distance))));
+        
+        }else{
+          mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+        }
         for (int32_t j = 0; j < numSta; j++)
         {
           //std::cout << "x:" << x << " y:" << y << " distance:" << distance << "\n";

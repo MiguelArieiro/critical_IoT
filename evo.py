@@ -40,7 +40,7 @@ maxFit = 0
 minFit = 0
 genMin = 0
 genMax = 0
-#"./waf --run wifi-spatial-reuse-modified -runs=3 -numAp=16 -numSta=64 -duration=60 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=40 -useUdp=0 -useRts=0 -guardInterval=1600 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=9"
+#"./waf --run evoMCS -runs=3 -numAp=16 -numSta=64 -duration=60 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=40 -useUdp=0 -useRts=0 -guardInterval=1600 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=9"
 #-erro com 16/64
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
@@ -64,7 +64,7 @@ mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5, 6, 7, 8,
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
 param = [technology, frequency, channelWidth, [0, 1], [0, 1], guardInterval, [0, 1], [0, 1], mcs]
 
-cmd_str ="wifi-spatial-reuse-modified -runs=3 -seed=%d -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
+cmd_str ="evoMCS -runs=3 -seed=%d -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
 def gen_indiv():
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
