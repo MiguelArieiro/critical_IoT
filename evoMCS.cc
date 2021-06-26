@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
   uint32_t runs = 3;
   bool tracing = false;
   bool walk = false;
+
   double duration = 10.0;           // seconds
   double powAp = 21.0;              // dBm
   double powSta = 10.0;             // dBm
@@ -192,11 +193,10 @@ int main(int argc, char *argv[])
     Config::SetDefault("ns3::WifiRemoteStationManager::RtsCtsThreshold", StringValue("0"));
   }
 
-  double avg_energy = 0.0;
-  uint64_t bytesRx = 0;
-
-  for(uint32_t r=1; r <= runs; r++){
-    SeedManager::SetRun (r);
+  std::vector<double> bytesRx(runs);
+  std::vector<double> avg_energy(runs);
+  for(uint32_t r=0; r < runs; r++){
+    SeedManager::SetRun (r+1);
 
     NodeContainer wifiStaNodes;
     wifiStaNodes.Create(numSta * numAp);
@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
     }
 
     std::string outputDir = "";
-    std::string simTag = "wifi_spatial_reuse";
+    std::string simTag = "wifi_spatial_reuse"+std::to_string(r);
     std::string file = outputDir + "testflow.xml";
     flowMonitor->SerializeToXmlFile(file.c_str(), false, true);
     // Print per-flow statistics
@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
 
       outFile.setf(std::ios_base::fixed);
 
-      outFile << "Flow;source;src_port;destiny;dst_port;proto;service;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio \n";
+      outFile << "Flow;source;src_port;destiny;dst_port;proto;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio \n";
       for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin(); i != stats.end(); ++i)
       {
         Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow(i->first);
@@ -705,21 +705,28 @@ int main(int argc, char *argv[])
     for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin (); iter != deviceModels.End (); iter ++)
     {
       double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
-      avg_energy += static_cast<double>(energyConsumed)/duration;
-      std::cout<<avg_energy<<std::endl;
+      avg_energy[r] += static_cast<double>(energyConsumed)/(duration*numAp*numSta);
     }
+    std::cout<<avg_energy[r]<<std::endl;
 
     for (int32_t i = 0; i < numAp; i++)
     {   
-      bytesRx += static_cast<double>(DynamicCast<PacketSink>(serverApps.Get(i)) -> GetTotalRx())/duration;
-      std::cout<<bytesRx<<std::endl;
+      bytesRx[r] += static_cast<double>(DynamicCast<PacketSink>(serverApps.Get(i)) -> GetTotalRx())/(duration*numAp*numSta);
     }
+    std::cout<<bytesRx[r]<<std::endl;
 
     Simulator::Destroy();
 
   }
 
+  double t_energy = 0.0;
+  double t_bitrate = 0.0;
+  
+  for (uint32_t r = 0; r<runs; r++){
+    t_energy+=avg_energy[r]/runs;
+    t_bitrate+=bytesRx[r]*8.0/runs;
+  }
 
-  std::cout << avg_energy/(numAp*numSta*runs) << "\t" << bytesRx*8.0/(numAp*numSta*runs) << std::endl;
+  std::cout << t_energy << "\t" << t_bitrate << std::endl;
   return 0;
 }

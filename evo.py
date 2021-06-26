@@ -9,13 +9,10 @@ from math import sqrt
 
 __author__ = 'Miguel Arieiro'
 
-directory = "/home/ubuntu/critical_iot/tests/"
-#directory = "/mnt/d/Users/Miguel/Documents/Engenharia Informática/UC/Ano 5/IoT/cenario_IoT/experimentation/evo/" 
+directory = "../../tests/"
 
 verbose = True
-
 seed = 1
-
 
 #parameters
 pop_size = 25
@@ -25,7 +22,6 @@ elite_per = 0.3
 random_per = 0.2
 minimum_throughput = 0.0
 mutation_prob = 0.3
-
 
 best_per_gen = list()
 avg_per_gen = list()
@@ -40,8 +36,6 @@ maxFit = 0
 minFit = 0
 genMin = 0
 genMax = 0
-#"./waf --run evoMCS -runs=3 -numAp=16 -numSta=64 -duration=60 -dataRate=100000 -technology=0 -frequency=5 -channelWidth=40 -useUdp=0 -useRts=0 -guardInterval=1600 -enableObssPd=1 -useExtendedBlockAck=0 -mcs=9"
-#-erro com 16/64
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
 scenario = {0: [4, 4, 10, 100000], 1: [9, 16, 10, 100000], 2: [16, 64, 60, 100000]}
@@ -78,7 +72,7 @@ def gen_indiv():
     return indiv
 
 def heuristic (energy, throughput, minimum_throughput=0.0):
-    if (throughput < minimum_throughput):
+    if (throughput <= minimum_throughput):
         return sys.maxsize
     return (energy/throughput)
 
@@ -407,8 +401,6 @@ def main ():
     # gen original population
     population = gen_population(pop_size, current_scen) 
 
-
-
     #TODO add scenarios
     update_stats(population, metric)
     if verbose:
@@ -507,6 +499,7 @@ def test():
                 if verbose:
                     print(population)
                 file.write(str(population)+'\n')
+                file.flush()
                 count+=1
                 calculate_stats()
 
