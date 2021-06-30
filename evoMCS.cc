@@ -780,13 +780,13 @@ main (int argc, char *argv[])
 
           if (verbose)
             {
-              std::cout << static_cast<double> (bytesRx) / (duration * numAp * numSta) << std::endl;
+              std::cout << static_cast<double> (bytesRx) / (duration * numAp * numSta) * 8.0 << std::endl;
             }
         }
 
       if (verbose)
         {
-          std::cout << "Avg throughput - run " << r << " " << avg_throughput[r] << std::endl;
+          std::cout << "Avg throughput - run " << r << " " << avg_throughput[r] * 8.0 << std::endl;
         }
 
       Simulator::Destroy ();
