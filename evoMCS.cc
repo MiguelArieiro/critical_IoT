@@ -113,7 +113,7 @@ main (int argc, char *argv[])
   int32_t mcs = 9; // MCS value
   uint64_t dataRate = 10000; // bits/s
   double distance = 25; // mobility model side = 2 * distance
-  int technology = 0; // technology to be used 802.11ax = 0, 5G = 1;
+  int technology = 0; // technology to be used 802.11ax = 0, 802.11n = 1;
   int frequency = 5; // frequency selection
   int channelWidth = 20; // channel number
   int numApAntennas = 4; // number of AP Antenas
@@ -204,6 +204,8 @@ main (int argc, char *argv[])
 
   std::vector<double> avg_throughput (runs);
   std::vector<double> avg_energy (runs);
+  std::vector<double> avg_packet_loss (runs);
+
   for (uint32_t r = 0; r < runs; r++)
     {
       SeedManager::SetRun (r + 1);
@@ -631,20 +633,17 @@ main (int argc, char *argv[])
         }
 
       Simulator::Run ();
-      std::cout << "test" << std::endl;
 
       if (tracing)
         {
           for (int32_t i = 0; i < numAp; i++)
             {
-              double throughput = static_cast<double> (bytesReceived[numSta * numAp + i]) * 8 /
-                                  1000 / 1000 / duration;
+              double throughput = static_cast<double> (bytesReceived[numSta * numAp + i]) * 8.0 /
+                                  1000.0 / 1000.0 / duration;
               std::cout << "Physical throughput for BSS " << i + 1 << ": " << throughput
                         << " Mbit/s" << std::endl;
             }
         }
-
-      std::cout << "test" << std::endl;
 
       std::string outputDir = "";
       std::string simTag = "evoMCS" + std::to_string (r);
@@ -656,12 +655,10 @@ main (int argc, char *argv[])
           DynamicCast<Ipv4FlowClassifier> (flowMonHelper.GetClassifier ());
       FlowMonitor::FlowStatsContainer stats = flowMonitor->GetFlowStats ();
 
+      std::regex server_regex ("^172.*.0.1$");
       double averageFlowThroughput = 0.0;
       double averageFlowDelay = 0.0;
 
-      std::regex server_regex ("^172.*.0.1$");
-
-      std::cout << "test" << std::endl;
       if (verbose)
         {
 
@@ -753,16 +750,38 @@ main (int argc, char *argv[])
         }
       //End Simulator
 
+      for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin ();
+           i != stats.end (); ++i)
+        {
+          std::stringstream ss;
+          ss << classifier->FindFlow (i->first).sourceAddress;
+
+          if (!std::regex_match (ss.str (), server_regex))
+            {
+              int lost_packets = (i->second.txPackets - i->second.rxPackets);
+              avg_packet_loss[r] +=
+                  static_cast<double> (lost_packets) / static_cast<double> (i->second.txPackets);
+            }
+        }
+      avg_packet_loss[r] = avg_packet_loss[r] / static_cast<double> (numSta * numAp);
+
+      if (verbose)
+        {
+          std::cout << "Avg packet loss - run " << r << " " << avg_packet_loss[r] << std::endl;
+        }
+
       //get total energy consumed
       for (DeviceEnergyModelContainer::Iterator iter = deviceModels.Begin ();
            iter != deviceModels.End (); iter++)
         {
           double energyConsumed = (*iter)->GetTotalEnergyConsumption ();
-          avg_energy[r] += static_cast<double> (energyConsumed) / (duration * numAp * numSta);
+          avg_energy[r] += static_cast<double> (energyConsumed) /
+                           static_cast<double> (duration * numAp * numSta);
 
           if (verbose)
             {
-              std::cout << static_cast<double> (energyConsumed) / (duration * numAp * numSta)
+              std::cout << static_cast<double> (energyConsumed) /
+                               static_cast<double> (duration * numAp * numSta)
                         << std::endl;
             }
         }
@@ -776,11 +795,14 @@ main (int argc, char *argv[])
         {
           double bytesRx =
               static_cast<double> (DynamicCast<PacketSink> (serverApps.Get (i))->GetTotalRx ());
-          avg_throughput[r] += static_cast<double> (bytesRx) / (duration * numAp * numSta);
+          avg_throughput[r] +=
+              static_cast<double> (bytesRx) / static_cast<double> (duration * numAp * numSta);
 
           if (verbose)
             {
-              std::cout << static_cast<double> (bytesRx) / (duration * numAp * numSta) * 8.0 << std::endl;
+              std::cout << static_cast<double> (bytesRx) /
+                               static_cast<double> (duration * numAp * numSta) * 8.0
+                        << std::endl;
             }
         }
 
@@ -794,13 +816,15 @@ main (int argc, char *argv[])
 
   double t_energy = 0.0;
   double t_bitrate = 0.0;
+  double t_packet_loss = 0.0;
 
   for (uint32_t r = 0; r < runs; r++)
     {
-      t_energy += avg_energy[r] / runs;
-      t_bitrate += avg_throughput[r] * 8.0 / runs;
+      t_energy += avg_energy[r] / static_cast<double> (runs);
+      t_bitrate += avg_throughput[r] * 8.0 / static_cast<double> (runs);
+      t_packet_loss += avg_packet_loss[r] / static_cast<double> (runs);
     }
 
-  std::cout << t_energy << "\t" << t_bitrate << std::endl;
+  std::cout << t_energy << "\t" << t_bitrate << "\t" << t_packet_loss << std::endl;
   return 0;
 }

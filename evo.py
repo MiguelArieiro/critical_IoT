@@ -5,6 +5,7 @@ import sys
 import copy
 import numpy
 import concurrent.futures
+import pickle
 from math import sqrt
 
 __author__ = 'Miguel Arieiro'
@@ -13,11 +14,12 @@ directory = "../../tests/"
 
 verbose = True
 seed = 1
+restart = 0
 
 # parameters
 pop_size = 25
 number_generations = 25
-runs_per_scen = 100
+runs_per_scen = [25, 15, 5]
 elite_per = 0.3
 random_per = 0.2
 minimum_throughput = 0.0
@@ -39,7 +41,7 @@ genMax = 0
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
 scenario = {0: [4, 4, 10, 100000], 1: [
-    9, 16, 10, 100000], 2: [16, 64, 60, 100000]}
+    9, 16, 10, 100000], 2: [16, 64, 10, 100000]}
 
 # [0 - 802.11ax, 1 - 802.11n]
 technology = [0, 1]
@@ -57,15 +59,16 @@ guardInterval = {0: [800, 1600, 3200], 1: [0, 1]}
 mcs = {0: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 1: [0, 1, 2, 3, 4, 5,
                                                       6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]}
 
-#indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
+#param = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
 param = [technology, frequency, channelWidth, [0, 1],
          [0, 1], guardInterval, [0, 1], [0, 1], mcs]
+
+#indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs, energy, throughput, packet_loss, fitness]
 
 cmd_str = "evoMCS -runs=3 -seed=%d -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
 
 def gen_indiv():
-    #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
     global param
 
     # param[][random.randint(0, len(param[]) - 1)]
@@ -73,20 +76,20 @@ def gen_indiv():
     freq = param[1][tech][random.randint(0, len(param[1][tech]) - 1)]
 
     indiv = [tech, freq, param[2][freq][random.randint(0, len(param[2][freq]) - 1)], param[3][random.randint(0, len(param[3]) - 1)], param[4][random.randint(0, len(param[4]) - 1)], param[5][tech][random.randint(
-        0, len(param[5][tech]) - 1)], param[6][random.randint(0, len(param[6]) - 1)], param[7][random.randint(0, len(param[7]) - 1)], param[8][tech][random.randint(0, len(param[8][tech]) - 1)], -1]
+        0, len(param[5][tech]) - 1)], param[6][random.randint(0, len(param[6]) - 1)], param[7][random.randint(0, len(param[7]) - 1)], param[8][tech][random.randint(0, len(param[8][tech]) - 1)], -1, -1, -1, -1]
     return indiv
 
 
-def heuristic(energy, throughput, minimum_throughput=0.0):
+def heuristic(energy, throughput, packetLoss=0.0, minimum_throughput=0.0):
     if (throughput <= minimum_throughput):
         return sys.maxsize
-    return (energy/throughput)
+    return (energy/throughput*(1.0+packetLoss))
 
 
 def run_indiv(indiv, scen):
     global minimum_throughput
     global cmd_str
-    command = cmd_str % tuple([1] + scen + indiv[0:-1])
+    command = cmd_str % tuple([1] + scen + indiv[0:-4])
     result = subprocess.run(
         ['./waf', '--run-no-build', command], capture_output=True, text=True)
 
@@ -94,25 +97,33 @@ def run_indiv(indiv, scen):
         res = result.stdout.splitlines()[1].split()
         energy = float(res[0])
         throughput = float(res[1])
+        packet_loss = float(res[2])
     except:
-        command = cmd_str % tuple([3] + scen + indiv[0:-1])
+        command = cmd_str % tuple([3] + scen + indiv[0:-4])
         result = subprocess.run(
             ['./waf', '--run-no-build', command], capture_output=True, text=True)
         try:
             res = result.stdout.splitlines()[1].split()
             energy = float(res[0])
             throughput = float(res[1])
+            packet_loss = float(res[2])
         except:
             print(
                 "*********************************Errror*********************************:\n"+command)
             print(result)
             energy = sys.maxsize
-            throughput = 1.0
+            throughput = - 1.0
+            packet_loss = 1.0
+
+    indiv[-4] = energy
+    indiv[-3] = throughput
+    indiv[-2] = packet_loss
 
     if verbose:
-        print("energy: " + str(energy) + "\tthroughput: " + str(throughput))
+        print("energy: " + str(energy) + "\tthroughput: " +
+              str(throughput) + "\tpacket_loss: " + str(packet_loss))
 
-    return heuristic(energy, throughput, minimum_throughput)
+    return heuristic(energy, throughput, packet_loss, minimum_throughput)
 
 
 def run_all(population, current_scen, all=False):
@@ -168,11 +179,11 @@ def gen_new_population(parents, offspring, current_scen):
 def mutate_prob(original_indiv):
     global param
     global mutation_prob
-    #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck]
+    #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs, energy, throughput, packet_loss, fitness]
     indiv = original_indiv
-    indiv[-1] = -1
+    indiv[-4:-1] = -1
 
-    for i in range(len(indiv) - 1):
+    for i in range(len(indiv) - 4):
         if random.random() < mutation_prob:
             # case tech=1 == 802.11n, and there's only 5GHz
             if ((i == 1) and (len(param[1][indiv[0]]) == 1)):
@@ -186,7 +197,7 @@ def mutate_prob(original_indiv):
                                     ][random.randint(0, len(param[i][indiv[i-1]]) - 1)]
                 indiv[i] = temp
 
-            #guardInterval and mcs
+            # guardInterval and mcs
             elif (i == 5) or (i == 8):
                 temp = indiv[i]
                 while (temp == indiv[i]):
@@ -220,9 +231,9 @@ def mutate_prob(original_indiv):
 
 def mutate_one(original_indiv):
     global param
-    # indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]
+    #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs, energy, throughput, packet_loss, fitness]
     indiv = original_indiv
-    indiv[-1] = -1
+    indiv[-4:-1] = -1
 
     i = random.randint(0, len(original_indiv) - 2)
 
@@ -238,7 +249,7 @@ def mutate_one(original_indiv):
                             ][random.randint(0, len(param[i][indiv[i-1]]) - 1)]
         indiv[i] = temp
 
-    #guardInterval and mcs
+    # guardInterval and mcs
     elif (i == 5) or (i == 8):
         temp = indiv[i]
         while (temp == indiv[i]):
@@ -302,11 +313,11 @@ def mutate_all(population, mutation_op=mutate_one):
 
 def hamming_distance(v1, v2):
     # heuristic = v[-1]
-    return sum([1 for i in range(len(v1)-1) if v1[i] != v2[i]])
+    return sum([1 for i in range(len(v1)-4) if v1[i] != v2[i]])
 
 
 def euclidean_distance(v1, v2):
-    pairs = list(zip(v1[:-1], v2[:-1]))
+    pairs = list(zip(v1[:-4], v2[:-4]))
     # heuristic = v[-1]
     return sqrt(sum([(pair[0] - pair[1])**2 for pair in pairs]))
 
@@ -417,6 +428,26 @@ def stats_string():
     return string
 
 
+def log_file(path, string):
+    with open(path, "w") as file:
+        file.write(string+'\n')
+
+
+def save_random_state():
+    global directory
+    file_path = directory+'random_state'
+    with open(file_path, 'wb') as random_state_file:
+        pickle.dump(random.getstate(), random_state_file)
+
+
+def load_random_state():
+    global directory
+    file_path = directory+'random_state'
+    with open(file_path, 'rb') as random_state_file:
+        random_state = pickle.load(random_state_file)
+        random.setstate(random_state)
+
+
 def main():
     global pop_size
     global number_generations
@@ -426,10 +457,14 @@ def main():
     global scenario
     global runs_per_scen
     global seed
+    global restart
+    global directory
     metric = hamming_distance
     mutation_op = mutate_one
 
     random.seed(seed)
+    if restart:
+        load_random_state()
 
     reset_stats()
     current_scen = scenario[0]
@@ -437,28 +472,29 @@ def main():
     num_scen = 0
 
     filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (
-        pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__, mutation_prob)
+        pop_size, number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
     file_path = directory + filename
-    file = open(file_path, "w")
-    file.write(
-        "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]\n")
+
+    log_file(
+        file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
 
     # gen original population
     population = gen_population(pop_size, current_scen)
 
-    # TODO add scenarios
     update_stats(population, metric)
+
     if verbose:
         print(population)
-    file.write(str(population)+'\n')
+    log_file(file_path, str(population))
 
     for run in range(number_generations):
-        if (count == runs_per_scen):
+        if (count == runs_per_scen[num_scen]):
             num_scen += 1
             current_scen = scenario[num_scen]
             run_all(population, current_scen, all=True)
             count = 0
             print("Scenario: %d" % num_scen)
+
         if verbose:
             print("Run: %d\t Scenario: %d" % (run, num_scen))
 
@@ -466,18 +502,23 @@ def main():
         run_all(offspring, current_scen)
         population = gen_new_population(population, offspring, current_scen)
         run_all(population, current_scen)
+
         update_stats(population, metric)
+
         if verbose:
             print(population)
-        file.write(str(population)+'\n')
+        log_file(file_path, str(population))
+
+        save_random_state()
+
         count += 1
 
     calculate_stats()
+
     if verbose:
         print(stats_string())
 
-    file.write(stats_string()+'\n')
-    file.close()
+    log_file(file_path, stats_string())
 
 
 def test():
@@ -512,23 +553,24 @@ def test():
             num_scen = 0
             reset_stats()
             filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (
-                pop_size, number_generations, runs_per_scen, elite_per, random_per, mutation_op.__name__, mutation_prob)
+                pop_size, number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
             file_path = directory + filename
-            file = open(file_path, "w")
-            file.write(
-                "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
+
+            log_file(
+                file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
 
             # gen original population
             population = gen_population(pop_size, current_scen)
 
             # TODO add scenarios
             update_stats(population, metric)
+
             if verbose:
                 print(population)
-            file.write(str(population)+'\n')
+            log_file(file_path, str(population))
 
             for run in range(number_generations):
-                if (count == runs_per_scen):
+                if (count == runs_per_scen[num_scen]):
                     num_scen += 1
                     current_scen = scenario[num_scen]
                     run_all(population, current_scen, all=True)
@@ -545,16 +587,13 @@ def test():
                 update_stats(population, metric)
                 if verbose:
                     print(population)
-                file.write(str(population)+'\n')
-                file.flush()
+                log_file(file_path, str(population))
                 count += 1
                 calculate_stats()
 
             if verbose:
                 print(stats_string())
-
-            file.write(stats_string()+'\n')
-            file.close()
+            log_file(file_path, stats_string())
 
 
 if __name__ == "__main__":
