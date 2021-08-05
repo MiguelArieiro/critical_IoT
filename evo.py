@@ -1,3 +1,4 @@
+from concurrent.futures import thread
 from typing import List
 import subprocess
 import random
@@ -15,10 +16,11 @@ directory = "../../tests/"
 verbose = True
 seed = 1
 restart = 0
+max_threads=None
 
 # parameters
 pop_size = 25
-number_generations = 25
+number_generations = 40
 runs_per_scen = [25, 15, 5]
 elite_per = 0.3
 random_per = 0.2
@@ -65,7 +67,7 @@ param = [technology, frequency, channelWidth, [0, 1],
 
 #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs, energy, throughput, packet_loss, fitness]
 
-cmd_str = "evoMCS -runs=3 -seed=%d -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
+cmd_str = "evoMCS -runs=3 -verbose=0 -tracing=0 -seed=%d -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
 
 def gen_indiv():
@@ -128,9 +130,11 @@ def run_indiv(indiv, scen):
 
 def run_all(population, current_scen, all=False):
 
+    global max_threads
+
     res = list()
     if all == True:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
             for i in range(len(population)):
                 f = executor.submit(run_indiv, population[i], current_scen)
                 res.append(f)
@@ -139,7 +143,7 @@ def run_all(population, current_scen, all=False):
 
     else:
         count = 0
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
             for i in range(len(population)):
                 if (population[i][-1] == (-1)):
                     f = executor.submit(run_indiv, population[i], current_scen)
@@ -181,9 +185,9 @@ def mutate_prob(original_indiv):
     global mutation_prob
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs, energy, throughput, packet_loss, fitness]
     indiv = original_indiv
-    indiv[-4:-1] = -1
+    indiv[-4:] = [-1, -1, -1, -1]
 
-    for i in range(len(indiv) - 4):
+    for i in range(len(indiv) - 5):
         if random.random() < mutation_prob:
             # case tech=1 == 802.11n, and there's only 5GHz
             if ((i == 1) and (len(param[1][indiv[0]]) == 1)):
@@ -233,13 +237,13 @@ def mutate_one(original_indiv):
     global param
     #indiv = [technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs, energy, throughput, packet_loss, fitness]
     indiv = original_indiv
-    indiv[-4:-1] = -1
+    indiv[-4:] = [-1, -1, -1, -1]
 
-    i = random.randint(0, len(original_indiv) - 2)
+    i = random.randint(0, len(indiv) - 5)
 
     # case tech=1 == 802.11n, and there's only 5GHz
     while ((i == 1) and (len(param[1][indiv[0]]) == 1)):
-        i = random.randint(0, len(original_indiv) - 2)
+        i = random.randint(0, len(indiv) - 5)
 
     # frequency and channel width
     if (i == 1) or (i == 2):
@@ -429,20 +433,20 @@ def stats_string():
 
 
 def log_file(path, string):
-    with open(path, "w") as file:
+    with open(path, "a+") as file:
         file.write(string+'\n')
 
 
-def save_random_state():
+def save_random_state(run):
     global directory
-    file_path = directory+'random_state'
+    file_path = directory+'random_state_'+str(run)
     with open(file_path, 'wb') as random_state_file:
         pickle.dump(random.getstate(), random_state_file)
 
 
-def load_random_state():
+def load_random_state(run):
     global directory
-    file_path = directory+'random_state'
+    file_path = directory+'random_state_'+str(run)
     with open(file_path, 'rb') as random_state_file:
         random_state = pickle.load(random_state_file)
         random.setstate(random_state)
@@ -459,27 +463,36 @@ def main():
     global seed
     global restart
     global directory
+    global max_threads
     metric = hamming_distance
     mutation_op = mutate_one
-
-    random.seed(seed)
-    if restart:
-        load_random_state()
-
-    reset_stats()
-    current_scen = scenario[0]
-    count = 0
-    num_scen = 0
 
     filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (
         pop_size, number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
     file_path = directory + filename
+    reset_stats()
+    
+    start=0
 
-    log_file(
-        file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
+    if restart:
+        #set stuff
+        count = 25
+        num_scen = 0
+        current_scen = scenario[num_scen]
+        start = 25
+        load_random_state(start-1)
+        #set last pop
+        population = [[0, 6, 160, 0, 0, 800, 1, 0, 4, 0.627258, 128077.0, 0.00436679, 4.918893352919104e-06], [0, 6, 80, 0, 0, 800, 0, 0, 4, 0.627258, 128077.0, 0.00436679, 4.918893352919104e-06], [0, 5, 160, 1, 1, 1600, 1, 0, 11, 0.602791, 28747.3, 0.751807, 4.994465695429119e-06], [0, 5, 160, 1, 1, 1600, 1, 0, 11, 0.602791, 28747.3, 0.751807, 4.994465695429119e-06], [0, 5, 80, 0, 0, 800, 1, 0, 1, 0.637507, 128065.0, 0.00330859, 4.994465695429119e-06], [0, 6, 80, 0, 0, 800, 1, 0, 4, 0.627258, 128077.0, 0.00436679, 4.994465695429119e-06], [0, 5, 80, 0, 0, 1600, 0, 0, 1, 0.637756, 128078.0, 0.00327288, 4.995731498440637e-06], [0, 5, 20, 1, 0, 1600, 0, 0, 1, 0.671662, 118643.0, 0.0145213, 4.995731498440637e-06], [0, 5, 80, 0, 1, 800, 0, 1, 0, 0.688286, 125158.0, 0.0105796, 4.995731498440637e-06], [0, 5, 160, 1, 0, 1600, 1, 1, 11, 0.589383, 28747.3, 0.751785, 4.995731498440637e-06], [1, 5, 40, 0, 0, 1, 1, 0, 5, 2.09098, 128079.0, 0.00131151, 1.6347116554468728e-05], [1, 5, 80, 0, 0, 0, 0, 0, 16, 2.14529, 128022.0, 0.00378094, 1.6820555941733453e-05], [1, 5, 160, 1, 1, 0, 1, 0, 7, 2.10414, 118871.0, 0.0103397, 1.7884060673822886e-05], [1, 5, 160, 1, 1, 0, 1, 0, 7, 2.10414, 118871.0, 0.0103397, 1.7884060673822886e-05], [0, 5, 80, 0, 0, 800, 0, 0, 1, 0.637507, 128065.0, 0.00330859, 3.5866295197926804e-05], [0, 6, 40, 1, 0, 3200, 1, 0, 11, 0.59081, 28748.0, 0.751785, 3.600153387540003e-05], [0, 6, 40, 1, 1, 1600, 1, 0, 7, 0.597037, 28748.0, 0.751959, 3.63845952929943e-05], [0, 6, 40, 1, 1, 1600, 1, 0, 7, 0.597037, 28748.0, 0.751959, 3.63845952929943e-05], [0, 6, 20, 1, 1, 800, 1, 1, 9, 0.598256, 28748.7, 0.751893, 3.63845952929943e-05], [0, 6, 20, 1, 1, 800, 1, 1, 9, 0.598256, 28748.7, 0.751893, 3.63845952929943e-05], [0, 6, 40, 1, 1, 1600, 1, 0, 7, 0.597037, 28748.0, 0.751959, 3.63845952929943e-05], [0, 5, 40, 0, 0, 3200, 0, 0, 1, 0.641479, 128064.0, 0.00328411, 3.63845952929943e-05], [0, 5, 160, 1, 0, 800, 1, 1, 11, 0.588594, 28748.0, 0.751775, 3.645662233798398e-05], [0, 5, 80, 0, 1, 1600, 0, 1, 0, 0.690509, 127964.0, 0.0023945, 3.645662233798398e-05], [0, 5, 40, 1, 1, 3200, 1, 1, 9, 0.59891, 28748.0, 0.751852, 3.649651041185474e-05]]
 
-    # gen original population
-    population = gen_population(pop_size, current_scen)
+    else:
+        random.seed(seed)
+        count = 0
+        num_scen = 0
+        current_scen = scenario[num_scen]
+        log_file(
+            file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
+        # gen original population
+        population = gen_population(pop_size, current_scen)
 
     update_stats(population, metric)
 
@@ -487,13 +500,24 @@ def main():
         print(population)
     log_file(file_path, str(population))
 
-    for run in range(number_generations):
+    for run in range(start, number_generations):
         if (count == runs_per_scen[num_scen]):
+            count = 0
             num_scen += 1
             current_scen = scenario[num_scen]
+            max_threads = 1
+
+            calculate_stats()
+
+            if verbose:
+                print(stats_string())
+            log_file(file_path, stats_string())
+            
+            print("Scenario: %d" % (num_scen))
+            log_file(file_path, str(num_scen))
+
+            reset_stats()
             run_all(population, current_scen, all=True)
-            count = 0
-            print("Scenario: %d" % num_scen)
 
         if verbose:
             print("Run: %d\t Scenario: %d" % (run, num_scen))
@@ -509,7 +533,7 @@ def main():
             print(population)
         log_file(file_path, str(population))
 
-        save_random_state()
+        save_random_state(run)
 
         count += 1
 
@@ -519,7 +543,6 @@ def main():
         print(stats_string())
 
     log_file(file_path, stats_string())
-
 
 def test():
     global pop_size
@@ -575,7 +598,6 @@ def test():
                     current_scen = scenario[num_scen]
                     run_all(population, current_scen, all=True)
                     count = 0
-                    print("Scenario: %d" % num_scen)
                 if verbose:
                     print("Run: %d\t Scenario: %d" % (run, num_scen))
 
