@@ -19,7 +19,7 @@ restart = 0
 max_threads=None
 
 # parameters
-pop_size = 25
+pop_size = [25,10,10]
 number_generations = 40
 runs_per_scen = [25, 15, 5]
 elite_per = 0.3
@@ -43,7 +43,7 @@ genMax = 0
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
 scenario = {0: [4, 4, 10, 100000], 1: [
-    9, 16, 10, 100000], 2: [16, 64, 10, 100000]}
+    9, 16, 3, 100000], 2: [16, 64, 3, 100000]}
 
 # [0 - 802.11ax, 1 - 802.11n]
 technology = [0, 1]
@@ -69,7 +69,6 @@ param = [technology, frequency, channelWidth, [0, 1],
 
 cmd_str = "evoMCS -runs=3 -verbose=0 -tracing=0 -seed=%d -numAp=%d -numSta=%d -duration=%d -dataRate=%d -technology=%d -frequency=%d -channelWidth=%d -useUdp=%d -useRts=%d -guardInterval=%d -enableObssPd=%d -useExtendedBlockAck=%d -mcs=%d"
 
-
 def gen_indiv():
     global param
 
@@ -82,7 +81,12 @@ def gen_indiv():
     return indiv
 
 
-def heuristic(energy, throughput, packetLoss=0.0, minimum_throughput=0.0):
+def heuristic_v1(energy, throughput, packetLoss=0.0, minimum_throughput=0.0):
+    if (throughput <= minimum_throughput):
+        return sys.maxsize
+    return (energy/throughput)
+
+def heuristic_v2(energy, throughput, packetLoss=0.0, minimum_throughput=0.0):
     if (throughput <= minimum_throughput):
         return sys.maxsize
     return (energy/throughput*(1.0+packetLoss))
@@ -125,7 +129,7 @@ def run_indiv(indiv, scen):
         print("energy: " + str(energy) + "\tthroughput: " +
               str(throughput) + "\tpacket_loss: " + str(packet_loss))
 
-    return heuristic(energy, throughput, packet_loss, minimum_throughput)
+    return heuristic_v2(energy, throughput, packet_loss, minimum_throughput)
 
 
 def run_all(population, current_scen, all=False):
@@ -288,7 +292,7 @@ def mutate_one(original_indiv):
 def rank_pop(population, n):
     pop = copy.deepcopy(population)
     pop.sort(reverse=True, key=lambda x: x[-1])
-    probs = [(2*i)/(pop_size*(pop_size + 1)) for i in range(1, pop_size + 1)]
+    probs = [(2*i)/(len(pop)*(len(pop) + 1)) for i in range(1, len(pop) + 1)]
     parents = []
     for _ in range(n):
         value = random.uniform(0, 1)
@@ -468,7 +472,7 @@ def main():
     mutation_op = mutate_one
 
     filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (
-        pop_size, number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
+        pop_size[0], number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
     file_path = directory + filename
     reset_stats()
     
@@ -492,7 +496,7 @@ def main():
         log_file(
             file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
         # gen original population
-        population = gen_population(pop_size, current_scen)
+        population = gen_population(pop_size[0], current_scen)
 
     update_stats(population, metric)
 
@@ -506,6 +510,7 @@ def main():
             num_scen += 1
             current_scen = scenario[num_scen]
             max_threads = 1
+            population=population[:pop_size[num_scen]]
 
             calculate_stats()
 
@@ -559,7 +564,7 @@ def test():
 
     global mutation_prob
     for p in [25]:
-        pop_size = p
+        pop_size[0] = p
         mutation_op = mutate_one
         for r in [1]:
             if r == 1:
@@ -576,14 +581,14 @@ def test():
             num_scen = 0
             reset_stats()
             filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (
-                pop_size, number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
+                pop_size[0], number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
             file_path = directory + filename
 
             log_file(
                 file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
 
             # gen original population
-            population = gen_population(pop_size, current_scen)
+            population = gen_population(pop_size[0], current_scen)
 
             # TODO add scenarios
             update_stats(population, metric)
