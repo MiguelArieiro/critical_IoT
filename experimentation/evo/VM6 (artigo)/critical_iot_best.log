@@ -1,4 +1,4 @@
-# cmd: ./waf --run "evoMCS -runs=3 -walk=0 -verbose=1 -seed=1 -numAp=9 -numSta=16 -duration=10 -dataRate=100000 -technology=0 -frequency=6 -channelWidth=20 -useUdp=0 -useRts=0 -guardInterval=800 -enableObssPd=0 -useExtendedBlockAck=0 -mcs=3"
+# cmd: ./waf --run "evoMCS -runs=3 -walk=0 -verbose=1 -seed=1 -numAp=9 -numSta=16 -duration=10 -dataRate=100000 -technology=0 -frequency=6 -channelWidth=20 -useUdp=0 -useRts=0 -guardInterval=800 -enableObssPd=0 -useExtendedBlockAck=0 -mcs=3"#run 0
 Flow;source;src_port;destiny;dst_port;proto;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio 
 1;172.1.0.2;49153;172.1.0.1;5000;TCP;upload;3;168;134.400000;0.000134;0;0;0;0;0;0;3;100.000000
 2;172.1.0.3;49153;172.1.0.1;5000;TCP;upload;361;82800;66240.000000;0.066240;53936;43148.800000;0.043149;215.024191;10.108418;106;255;70.637119
@@ -434,10 +434,8 @@ Avg energy - run 0 0.629438
 10608.8
 9239.69
 10163.3
-Avg throughput - run 0 79964.7
-test
-test
-test
+Avg throughput - run 0 79964.7
+#run 1
 Flow;source;src_port;destiny;dst_port;proto;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio 
 1;172.1.0.2;49153;172.1.0.1;5000;TCP;upload;14;6632;5305.600000;0.005306;56;44.800000;0.000045;431.579863;0.000000;1;13;92.857143
 2;172.1.0.3;49153;172.1.0.1;5000;TCP;upload;86;48968;39174.400000;0.039174;27156;21724.800000;0.021725;209.909556;49.816563;48;38;44.186047
@@ -876,5 +874,3 @@ Avg energy - run 1 0.629498
 7709.44
 10280.2
 Avg throughput - run 1 77759
-[01;31mCommand ['/home/admin/critical_iot/ns-3-allinone/ns-3.33/build/scratch/evoMCS', '-runs=3', '-walk=0', '-verbose=1', '-seed=1', '-numAp=9', '-numSta=16', '-duration=10', '-dataRate=100000', '-technology=0', '-frequency=6', '-channelWidth=20', '-useUdp=0', '-useRts=0', '-guardInterval=800', '-enableObssPd=0', '-useExtendedBlockAck=0', '-mcs=3'] terminated with signal SIGSEGV. Run it under a debugger to get more information (./waf --run <program> --gdb").[0m
-[01;32mroot@template[00m:[01;34m~/critical_iot/ns-3-allinone/ns-3.33[00m# 

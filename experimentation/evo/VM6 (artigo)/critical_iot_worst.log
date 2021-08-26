@@ -1,6 +1,6 @@
 # cmd: ./waf --run "evoMCS -runs=3 -walk=0 -verbose=1 -seed=1 -numAp=9 -numSta=16 -duration=10 -dataRate=100000 -technology=1 -frequency=5 -channelWidth=160 -useUdp=1 -useRts=0 -guardInterval=1 -enableObssPd=1 -useExtendedBlockAck=1 -mcs=15"
 
-
+#run 0
 Flow;source;src_port;destiny;dst_port;proto;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio 
 1;172.1.0.2;49153;172.1.0.1;9;UDP;upload;4062;276216;220972.800000;0.220973;84932;67945.600000;0.067946;387.080277;6.836097;1249;2813;69.251600
 2;172.1.0.3;49153;172.1.0.1;9;UDP;upload;4062;276216;220972.800000;0.220973;66844;53475.200000;0.053475;359.160080;8.363981;983;3079;75.800098
@@ -301,9 +301,8 @@ Avg energy - run 0 2.1071
 5182.89
 6430.89
 Avg throughput - run 0 48782.4
-test
-test
-test
+
+#run 1
 Flow;source;src_port;destiny;dst_port;proto;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio 
 1;172.1.0.2;49153;172.1.0.1;9;UDP;upload;4062;276216;220972.800000;0.220973;76840;61472.000000;0.061472;365.746035;7.248196;1130;2932;72.181192
 2;172.1.0.3;49153;172.1.0.1;9;UDP;upload;4062;276216;220972.800000;0.220973;86224;68979.200000;0.068979;414.952546;8.825470;1268;2794;68.783850
@@ -604,9 +603,8 @@ Avg energy - run 1 2.10794
 5709.11
 5401.56
 Avg throughput - run 1 49863.8
-test
-test
-test
+
+#run 2
 Flow;source;src_port;destiny;dst_port;proto;direction;tx_packets;tx_bytes;tx_offered_raw;tx_offered_mbps;rx_bytes;rx_throughput_raw;rx_throughput_mbps;mean_delay(ms);mean_jitter(ms);rx_packets;lost_packets;packet_loss_ratio 
 1;172.1.0.2;49153;172.1.0.1;9;UDP;upload;4062;276216;220972.800000;0.220973;95948;76758.400000;0.076758;368.694260;7.702376;1411;2651;65.263417
 2;172.1.0.3;49153;172.1.0.1;9;UDP;upload;4062;276216;220972.800000;0.220973;61472;49177.600000;0.049178;441.450793;8.523945;904;3158;77.744953
@@ -908,5 +906,4 @@ Avg energy - run 2 2.10787
 5850.22
 Avg throughput - run 2 50039.3
 2.10764	49561.9
-root@ubuntu-template:/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33# ^C
-root@ubuntu-template:/home/ubuntu/critical_iot/ns-3-allinone/ns-3.33# exit
+
