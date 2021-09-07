@@ -179,7 +179,7 @@ fitness_int = [1.047129722789398e-05, 1.047129722789398e-05, 1.047129722789398e-
 plt.plot(range(26,len(fitness_int)+26), fitness_int)
 
 plt.title('Fitness do melhor individuo (cenário intermédio)')
-plt.legend(["EvoMCS_v1"], loc="upper right")
+plt.legend(["EvoMCS_v2"], loc="upper right")
 plt.ylabel("Fitness")
 plt.xlabel("Geração")
 
