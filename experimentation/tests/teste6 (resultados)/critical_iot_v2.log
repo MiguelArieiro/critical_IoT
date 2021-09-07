@@ -631,3 +631,4 @@ Diversidade média: 0.9555555555555556 +- 0.0
 Scenario: 2
 energy: 0.936965	throughput: 150900.0	packet_loss: 0.131134
 energy: 0.936965	throughput: 150900.0	packet_loss: 0.131134
+energy: 0.936965	throughput: 150900.0	packet_loss: 0.131134
