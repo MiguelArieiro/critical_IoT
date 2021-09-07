@@ -100,14 +100,14 @@ int main(int argc, char *argv[])
   double duration = 10.0;           // seconds
   double powAp = 21.0;              // dBm
   double powSta = 10.0;             // dBm
-  double ccaEdTrAp = -62;           // dBm
-  double ccaEdTrSta = -62;          // dBm
-  double rxSensAp = -92;            // dBm
-  double rxSensSta = -92;           // dBm
+  double ccaEdTrAp = -62.0;         // dBm
+  double ccaEdTrSta = -62.0;        // dBm
+  double rxSensAp = -92.0;          // dBm
+  double rxSensSta = -92.0;         // dBm
   uint32_t tcpPayloadSize = 60;     // bytes
   uint32_t udpPayloadSize = 40;     // bytes
   int32_t mcs = 9;                  // MCS value
-  uint64_t dataRate = 10000;        // bits/s
+  uint64_t dataRate = 100000;       // bits/s
   double distance = 25;             // mobility model side = 2 * distance
   int technology = 0;               // technology to be used 802.11ax = 0, 802.11n = 1;
   int frequency = 5;                // frequency selection
@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-      // if no supported technology is selected
+      //if no supported technology is selected
       return 0;
     }
 
@@ -460,7 +460,7 @@ int main(int argc, char *argv[])
       }
     }
 
-    // AP pos
+    //AP pos
     mobility.SetPositionAllocator("ns3::GridPositionAllocator", "MinX", DoubleValue(0), "MinY",
                                   DoubleValue(0), "DeltaX", DoubleValue(distance), "DeltaY",
                                   DoubleValue(distance), "GridWidth", UintegerValue(edge_size),
@@ -469,7 +469,7 @@ int main(int argc, char *argv[])
     mobility.Install(wifiApNodes);
     //std::cout << "Mobility model configured\n";
 
-    // Routing
+    //Routing
     InternetStackHelper stack;
 
     Ipv4StaticRoutingHelper staticRoutingHelper;
@@ -688,8 +688,8 @@ int main(int argc, char *argv[])
           protoStream.str("UDP");
         }
         outFile << i->first << ";";
-        outFile << t.sourceAddress << ";" << t.sourcePort << ";" << t.destinationAddress
-                << ";" << t.destinationPort << ";";
+        outFile << t.sourceAddress << ":" << t.sourcePort << ";" << t.destinationAddress
+                << ":" << t.destinationPort << ";";
         outFile << protoStream.str() << ";";
 
         std::stringstream ss;
@@ -744,7 +744,6 @@ int main(int argc, char *argv[])
         std::cout << f.rdbuf();
       }
     }
-    //End Simulator
 
     for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin();
          i != stats.end(); ++i)
@@ -787,6 +786,7 @@ int main(int argc, char *argv[])
       std::cout << "Avg energy - run " << r << " " << avg_energy[r] << std::endl;
     }
 
+    //geet throughput
     for (int32_t i = 0; i < numAp; i++)
     {
       double bytesRx =
@@ -807,6 +807,7 @@ int main(int argc, char *argv[])
       std::cout << "Avg throughput - run " << r << " " << avg_throughput[r] * 8.0 << std::endl;
     }
 
+    //End Simulator
     Simulator::Destroy();
   }
 

@@ -43,7 +43,7 @@ genMax = 0
 
 # {num_cen: [numAp, numSta, duration, dataRate]}
 scenario = {0: [4, 4, 10, 100000], 1: [
-    9, 16, 3, 100000], 2: [16, 64, 3, 100000]}
+    9, 16, 3, 100000], 2: [4, 32, 3, 100000]}
 
 # [0 - 802.11ax, 1 - 802.11n]
 technology = [0, 1]
@@ -481,16 +481,14 @@ def main():
     start = 0
 
     if restart:
-        # set stuff
+        # set values
         count = 25
-        num_scen = 0
+        num_scen = 1
         current_scen = scenario[num_scen]
         start = 25
         load_random_state(start-1)
         # set last pop
-        population = [[0, 6, 160, 0, 0, 800, 1, 0, 4, 0.627258, 128077.0, 0.00436679, 4.918893352919104e-06], [0, 6, 80, 0, 0, 800, 0, 0, 4, 0.627258, 128077.0, 0.00436679, 4.918893352919104e-06], [0, 5, 160, 1, 1, 1600, 1, 0, 11, 0.602791, 28747.3, 0.751807, 4.994465695429119e-06], [0, 5, 160, 1, 1, 1600, 1, 0, 11, 0.602791, 28747.3, 0.751807, 4.994465695429119e-06], [0, 5, 80, 0, 0, 800, 1, 0, 1, 0.637507, 128065.0, 0.00330859, 4.994465695429119e-06], [0, 6, 80, 0, 0, 800, 1, 0, 4, 0.627258, 128077.0, 0.00436679, 4.994465695429119e-06], [0, 5, 80, 0, 0, 1600, 0, 0, 1, 0.637756, 128078.0, 0.00327288, 4.995731498440637e-06], [0, 5, 20, 1, 0, 1600, 0, 0, 1, 0.671662, 118643.0, 0.0145213, 4.995731498440637e-06], [0, 5, 80, 0, 1, 800, 0, 1, 0, 0.688286, 125158.0, 0.0105796, 4.995731498440637e-06], [0, 5, 160, 1, 0, 1600, 1, 1, 11, 0.589383, 28747.3, 0.751785, 4.995731498440637e-06], [1, 5, 40, 0, 0, 1, 1, 0, 5, 2.09098, 128079.0, 0.00131151, 1.6347116554468728e-05], [1, 5, 80, 0, 0, 0, 0, 0, 16, 2.14529, 128022.0, 0.00378094, 1.6820555941733453e-05], [1, 5, 160, 1, 1, 0, 1,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         0, 7, 2.10414, 118871.0, 0.0103397, 1.7884060673822886e-05], [1, 5, 160, 1, 1, 0, 1, 0, 7, 2.10414, 118871.0, 0.0103397, 1.7884060673822886e-05], [0, 5, 80, 0, 0, 800, 0, 0, 1, 0.637507, 128065.0, 0.00330859, 3.5866295197926804e-05], [0, 6, 40, 1, 0, 3200, 1, 0, 11, 0.59081, 28748.0, 0.751785, 3.600153387540003e-05], [0, 6, 40, 1, 1, 1600, 1, 0, 7, 0.597037, 28748.0, 0.751959, 3.63845952929943e-05], [0, 6, 40, 1, 1, 1600, 1, 0, 7, 0.597037, 28748.0, 0.751959, 3.63845952929943e-05], [0, 6, 20, 1, 1, 800, 1, 1, 9, 0.598256, 28748.7, 0.751893, 3.63845952929943e-05], [0, 6, 20, 1, 1, 800, 1, 1, 9, 0.598256, 28748.7, 0.751893, 3.63845952929943e-05], [0, 6, 40, 1, 1, 1600, 1, 0, 7, 0.597037, 28748.0, 0.751959, 3.63845952929943e-05], [0, 5, 40, 0, 0, 3200, 0, 0, 1, 0.641479, 128064.0, 0.00328411, 3.63845952929943e-05], [0, 5, 160, 1, 0, 800, 1, 1, 11, 0.588594, 28748.0, 0.751775, 3.645662233798398e-05], [0, 5, 80, 0, 1, 1600, 0, 1, 0, 0.690509, 127964.0, 0.0023945, 3.645662233798398e-05], [0, 5, 40, 1, 1, 3200, 1, 1, 9, 0.59891, 28748.0, 0.751852, 3.649651041185474e-05]]
-
+        population = []
     else:
         random.seed(seed)
         count = 0
@@ -553,80 +551,5 @@ def main():
     log_file(file_path, stats_string())
 
 
-def test():
-    global pop_size
-    global number_generations
-    global elite_per
-    global random_per
-    global minimum_throughput
-    global scenario
-    global runs_per_scen
-    global seed
-    metric = hamming_distance
-
-    random.seed(seed)
-
-    global mutation_prob
-    for p in [25]:  # sets population sizes
-        pop_size[0] = p
-        mutation_op = mutate_one
-        for r in [1]:  # sets number of runs and respective parameters
-            if r == 1:
-                mutation_op = mutate_prob
-                mutation_prob = 0.1
-            elif r == 2:
-                mutation_op = mutate_prob
-                mutation_prob = 0.3
-            elif r == 3:
-                mutation_op = mutate_prob
-                mutation_prob = 0.5
-            current_scen = scenario[0]
-            count = 0
-            num_scen = 0
-            reset_stats()
-            filename = "%d_%d_%d_%.2f_%.2f_%s_%.2f.log" % (
-                pop_size[0], number_generations, runs_per_scen[0], elite_per, random_per, mutation_op.__name__, mutation_prob)
-            file_path = directory + filename
-
-            log_file(
-                file_path, "[technology, frequency, channelWidth, useUDP, useRts, guardInterval, enableObssPd, useExtendedBlockAck, mcs]")
-
-            # gen original population
-            population = gen_population(pop_size[0], current_scen)
-
-            update_stats(population, metric)
-
-            if verbose:
-                print(population)
-            log_file(file_path, str(population))
-
-            for run in range(number_generations):
-                if (count == runs_per_scen[num_scen]):
-                    num_scen += 1
-                    current_scen = scenario[num_scen]
-                    run_all(population, current_scen, all=True)
-                    count = 0
-                if verbose:
-                    print("Run: %d\t Scenario: %d" % (run, num_scen))
-
-                offspring = mutate_all(population, mutation_op)
-                run_all(offspring, current_scen)
-                population = gen_new_population(
-                    population, offspring, current_scen)
-                run_all(population, current_scen)
-                update_stats(population, metric)
-
-                if verbose:
-                    print(population)
-                log_file(file_path, str(population))
-                count += 1
-                calculate_stats()
-
-            if verbose:
-                print(stats_string())
-            log_file(file_path, stats_string())
-
-
 if __name__ == "__main__":
     main()
-    # test()
